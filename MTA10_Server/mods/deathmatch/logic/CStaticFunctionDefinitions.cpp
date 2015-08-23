@@ -9133,11 +9133,18 @@ bool CStaticFunctionDefinitions::SetPlayerTeam ( CPlayer* pPlayer, CTeam* pTeam 
 {
     assert ( pPlayer );
 
+	CTeam* oldTeam = pPlayer->GetTeam();
     // If its a different team
-    if ( pTeam != pPlayer->GetTeam () )
+    if ( pTeam != oldTeam )
     {
         // Change his team
         pPlayer->SetTeam ( pTeam, true );
+
+		// Trigger the onPlayerTeamChange event on pPlayer
+		CLuaArguments Arguments;
+		Arguments.PushElement ( oldTeam );
+		Arguments.PushElement ( pTeam );
+		pPlayer->CallEvent( "onPlayerTeamChange", Arguments );
 
         // Tell everyone his new team
         CBitStream BitStream;
