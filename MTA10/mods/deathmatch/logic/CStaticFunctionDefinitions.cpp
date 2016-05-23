@@ -328,6 +328,24 @@ bool CStaticFunctionDefinitions::ShowChat ( bool bShow )
 }
 
 
+bool CStaticFunctionDefinitions::SetWindowFlashing ( bool flash, uint count )
+{
+    // Don't flash if the window is active
+    if ( g_pCore->IsFocused () || !g_pCore->GetCVars ()->GetValue < bool > ( "server_can_flash_window", true ) )
+        return false;
+
+    FLASHWINFO flashInfo;
+    flashInfo.cbSize = sizeof(FLASHWINFO);
+    flashInfo.hwnd = g_pCore->GetHookedWindow ();
+    flashInfo.dwTimeout = 0;
+    flashInfo.uCount = count;
+    flashInfo.dwFlags = flash ? (FLASHW_ALL | FLASHW_TIMERNOFG) : FLASHW_STOP;
+    ::FlashWindowEx ( &flashInfo );
+
+    return true;
+}
+
+
 CClientEntity* CStaticFunctionDefinitions::GetRootElement ( void )
 {
     return m_pRootEntity;
@@ -958,7 +976,7 @@ bool CStaticFunctionDefinitions::SetElementID ( CClientEntity& Entity, const cha
 }
 
 
-bool CStaticFunctionDefinitions::SetElementData ( CClientEntity& Entity, const char* szName, CLuaArgument& Variable, CLuaMain& LuaMain, bool bSynchronize )
+bool CStaticFunctionDefinitions::SetElementData ( CClientEntity& Entity, const char* szName, CLuaArgument& Variable, bool bSynchronize )
 {
     assert ( szName );
     assert ( strlen ( szName ) <= MAX_CUSTOMDATA_NAME_LENGTH );
@@ -984,7 +1002,7 @@ bool CStaticFunctionDefinitions::SetElementData ( CClientEntity& Entity, const c
                 g_pNet->DeallocateNetBitStream ( pBitStream );
 
                 // Set its custom data
-                Entity.SetCustomData ( szName, Variable, &LuaMain );
+                Entity.SetCustomData ( szName, Variable );
 
                 return true;
             }
@@ -992,7 +1010,7 @@ bool CStaticFunctionDefinitions::SetElementData ( CClientEntity& Entity, const c
         else
         {
             // Set its custom data
-            Entity.SetCustomData ( szName, Variable, &LuaMain );
+            Entity.SetCustomData ( szName, Variable );
 
             return true;
         }
@@ -1739,15 +1757,18 @@ const char* CStaticFunctionDefinitions::GetPedSimplestTask ( CClientPed& Ped )
                     break;
             }
         }
-        CTask* pTempTask = pTask->GetSubTask ();
-        while ( pTempTask )
-        {
-            pTask = pTempTask;
-            pTempTask = pTempTask->GetSubTask ();
-        }
         if ( pTask )
         {
-            return pTask->GetTaskName ();
+            CTask* pTempTask = pTask->GetSubTask ();
+            while ( pTempTask )
+            {
+                pTask = pTempTask;
+                pTempTask = pTempTask->GetSubTask ();
+            }
+            if ( pTask )
+            {
+                return pTask->GetTaskName ();
+            }
         }
     }
 
@@ -1965,6 +1986,58 @@ bool CStaticFunctionDefinitions::SetPlayerNametagShowing ( CClientEntity& Entity
         return true;
     }
     return false;
+}
+
+bool CStaticFunctionDefinitions::KillPed ( CClientEntity& Entity, CClientEntity* pKiller = NULL, unsigned char ucKillerWeapon = 0xFF, unsigned char ucBodyPart = 0xFF, bool bStealth = false )
+{
+    RUN_CHILDREN ( KillPed ( **iter, pKiller, ucKillerWeapon, ucBodyPart ) )
+
+    if ( !IS_PED ( &Entity ) )
+    {
+        return false;
+    }
+
+    CClientPed& pPed = static_cast < CClientPed& > ( Entity );
+
+    // Is the ped alive and a local entity?
+    if ( pPed.IsDead () || !pPed.IsLocalEntity() )
+    {
+        return false;
+    }
+
+    // Remove him from any occupied vehicle
+    pPed.SetVehicleInOutState ( VEHICLE_INOUT_NONE );
+    pPed.RemoveFromVehicle ();
+
+    // Is this a stealth kill? and do we have a killer ped?
+    // TODO: Make things dry. Refer to CPacketHandler::Packet_PlayerWasted
+    if ( bStealth && pKiller && IS_PED ( pKiller ) )
+    {
+        // Make our killer ped do the stealth kill animation
+        CClientPed* pKillerPed = static_cast < CClientPed * > ( pKiller );
+        pKillerPed->StealthKill ( &pPed );
+    }
+
+    // Kill the ped
+    pPed.Kill ( (eWeaponType) ucKillerWeapon,
+        ucBodyPart,
+        bStealth, false, 0, 15 );
+    // magic numbers 0, 15 found from CPlayerWastedPacket
+
+    // Tell our scripts the ped has died
+    CLuaArguments Arguments;
+    if ( pKiller ) Arguments.PushElement ( pKiller );
+    else Arguments.PushBoolean ( false );
+    if ( ucKillerWeapon != 0xFF ) Arguments.PushNumber ( ucKillerWeapon );
+    else Arguments.PushBoolean ( false );
+    if ( ucBodyPart != 0xFF ) Arguments.PushNumber ( ucBodyPart );
+    else Arguments.PushBoolean ( false );
+    Arguments.PushBoolean ( bStealth );
+            
+    pPed.CallEvent ( "onClientPedWasted", Arguments, false );
+    pPed.RemoveAllWeapons ();
+
+    return true;
 }
 
 
@@ -2488,6 +2561,31 @@ bool CStaticFunctionDefinitions::GetTrainSpeed ( CClientVehicle& Vehicle, float&
         return false;
 
     fSpeed = Vehicle.GetTrainSpeed ();
+    return true;
+}
+
+
+bool CStaticFunctionDefinitions::GetTrainTrack ( CClientVehicle& Vehicle, uchar& ucTrack )
+{
+    if ( Vehicle.GetVehicleType () != CLIENTVEHICLE_TRAIN )
+        return false;
+    else if ( Vehicle.IsDerailed () )
+        return false;
+
+    ucTrack = Vehicle.GetTrainTrack ();
+    return true;
+}
+
+
+bool CStaticFunctionDefinitions::GetTrainPosition ( CClientVehicle& Vehicle, float& fPosition )
+{
+    if ( Vehicle.GetVehicleType () != CLIENTVEHICLE_TRAIN )
+        return false;
+    else if ( Vehicle.IsDerailed () )
+        return false;
+
+
+    fPosition = Vehicle.GetTrainPosition ();
     return true;
 }
 
@@ -3156,6 +3254,31 @@ bool CStaticFunctionDefinitions::SetTrainSpeed ( CClientVehicle& Vehicle, float 
     Vehicle.SetTrainSpeed ( fSpeed );
     return true;
 }
+
+bool CStaticFunctionDefinitions::SetTrainTrack ( CClientVehicle& Vehicle, uchar ucTrack )
+{
+    if ( Vehicle.GetVehicleType () != CLIENTVEHICLE_TRAIN )
+        return false;
+    else if ( Vehicle.IsDerailed () )
+        return false;
+
+    Vehicle.SetTrainTrack ( ucTrack );
+    return true;
+}
+
+
+
+bool CStaticFunctionDefinitions::SetTrainPosition ( CClientVehicle& Vehicle, float fPosition )
+{
+    if ( Vehicle.GetVehicleType () != CLIENTVEHICLE_TRAIN )
+        return false;
+    else if ( Vehicle.IsDerailed () )
+        return false;
+
+    Vehicle.SetTrainPosition ( fPosition, false );
+    return true;
+}
+
 
 
 bool CStaticFunctionDefinitions::SetVehicleHeadLightColor ( CClientEntity& Entity, const SColor color )
@@ -4678,9 +4801,9 @@ CClientGUIElement* CStaticFunctionDefinitions::GUICreateStaticImage ( CLuaMain& 
         }
     }
 
-    if ( pParent && !pParent->IsCallPropagationEnabled () )
+    if ( pGUIElement && pParent && !pParent->IsCallPropagationEnabled () )
     {
-        pGUIElement->GetCGUIElement ()->SetInheritsAlpha ( false );
+        pElement->SetInheritsAlpha ( false );
     }
 
     return pGUIElement;
@@ -6602,8 +6725,7 @@ bool CStaticFunctionDefinitions::GetKeyState ( const char* szKey, bool& bState )
     const SBindableKey* pKey = pKeyBinds->GetBindableFromKey ( szKey );
     if ( pKey )
     {
-        HWND hActiveWindow = GetActiveWindow ();
-        if ( hActiveWindow == g_pCore->GetHookedWindow () )
+        if ( g_pCore->IsFocused () )
         {
             bState = ( ::GetKeyState ( pKey->ulCode ) & 0x8000  ) ? true:false;
             
@@ -6764,13 +6886,17 @@ CClientProjectile * CStaticFunctionDefinitions::CreateProjectile ( CResource& Re
                 case WEAPONTYPE_FREEFALL_BOMB:
                 case WEAPONTYPE_REMOTE_SATCHEL_CHARGE:
                 {
-                    CClientProjectile * pProjectile = m_pProjectileManager->Create ( &Creator, weaponType, vecOrigin, fForce, NULL, pTarget );
-                    if ( pProjectile )
+                    // Valid model ID? (0 means projectile will use default model)
+                    if ( usModel == 0 || CClientObjectManager::IsValidModel ( usModel ) )
                     {
-                        // Set our intiation data, which will be used on the next frame
-                        pProjectile->Initiate ( vecOrigin, vecRotation, vecVelocity, usModel );
-                        pProjectile->SetParent ( Resource.GetResourceDynamicEntity() );
-                        return pProjectile;
+                        CClientProjectile * pProjectile = m_pProjectileManager->Create ( &Creator, weaponType, vecOrigin, fForce, NULL, pTarget );
+                        if ( pProjectile )
+                        {
+                            // Set our intiation data, which will be used on the next frame
+                            pProjectile->Initiate ( vecOrigin, vecRotation, vecVelocity, usModel );
+                            pProjectile->SetParent ( Resource.GetResourceDynamicEntity() );
+                            return pProjectile;
+                        }
                     }
                     break;
                 }
@@ -8763,4 +8889,22 @@ bool CStaticFunctionDefinitions::SetLightDirection ( CClientPointLights* pLight,
         return true;
     }
     return false;
+}
+
+
+CClientSearchLight* CStaticFunctionDefinitions::CreateSearchLight ( CResource& Resource, const CVector& vecStart, const CVector& vecEnd, float startRadius, float endRadius, bool renderSpot )
+{
+    auto pLight = new CClientSearchLight ( m_pManager, INVALID_ELEMENT_ID );
+    if ( pLight )
+    {
+        pLight->SetParent ( Resource.GetResourceDynamicEntity () );
+        pLight->SetStartPosition ( vecStart );
+        pLight->SetEndPosition ( vecEnd );
+        pLight->SetStartRadius ( startRadius );
+        pLight->SetEndRadius ( endRadius );
+        pLight->SetRenderSpot ( renderSpot );
+        return pLight;
+    }
+
+    return nullptr;
 }

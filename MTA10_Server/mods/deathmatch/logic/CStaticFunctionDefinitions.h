@@ -87,7 +87,7 @@ public:
     // Element set funcs
     static bool                 ClearElementVisibleTo               ( CElement* pElement );
     static bool                 SetElementID                        ( CElement* pElement, const char* szID );
-    static bool                 SetElementData                      ( CElement* pElement, const char* szName, const CLuaArgument& Variable, CLuaMain* pLuaMain, bool bSynchronize );
+    static bool                 SetElementData                      ( CElement* pElement, const char* szName, const CLuaArgument& Variable, bool bSynchronize );
     static bool                 RemoveElementData                   ( CElement* pElement, const char* szName );
     static bool                 SetElementParent                    ( CElement* pElement, CElement* pParent );
     static bool                 SetElementMatrix                    ( CElement* pElement, const CMatrix& matrix );
@@ -272,6 +272,8 @@ public:
     static bool                 IsTrainDerailable                   ( CVehicle* pVehicle, bool& bDerailable );
     static bool                 GetTrainDirection                   ( CVehicle* pVehicle, bool& bDirection );
     static bool                 GetTrainSpeed                       ( CVehicle* pVehicle, float& fSpeed );
+    static bool                 GetTrainTrack                       ( CVehicle* pVehicle, uchar& ucTrack );
+    static bool                 GetTrainPosition                    ( CVehicle* pVehicle, float& fPosition );
     static bool                 IsVehicleBlown                      ( CVehicle* pVehicle );
     static bool                 GetVehicleHeadLightColor            ( CVehicle* pVehicle, SColor& outColor );
     static bool                 GetVehicleDoorOpenRatio             ( CVehicle* pVehicle, unsigned char ucDoor, float& fRatio );
@@ -328,8 +330,10 @@ public:
     static bool                 SetVehicleFrozen                    ( CVehicle* pVehicle, bool bFrozen );
     static bool                 SetTrainDerailed                    ( CVehicle* pVehicle, bool bDerailed );
     static bool                 SetTrainDerailable                  ( CVehicle* pVehicle, bool bDerailable );
-    static bool                 SetTrainDirection                   ( CVehicle* pVehicle, bool bDireciton );
+    static bool                 SetTrainDirection                   ( CVehicle* pVehicle, bool bDirection );
     static bool                 SetTrainSpeed                       ( CVehicle* pVehicle, float fSpeed );
+    static bool                 SetTrainTrack                       ( CVehicle* pVehicle, uchar ucTrack );
+    static bool                 SetTrainPosition                    ( CVehicle* pVehicle, float fPosition );
     static bool                 SetVehicleHeadLightColor            ( CVehicle* pVehicle, const SColor color );
     static bool                 SetVehicleTurretPosition            ( CVehicle* pVehicle, float fHorizontal, float fVertical );
     static bool                 SetVehicleDoorOpenRatio             ( CElement* pElement, unsigned char ucDoor, float fRatio, unsigned long ulTime = 0 );

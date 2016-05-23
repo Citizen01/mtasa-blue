@@ -1079,7 +1079,7 @@ bool CStaticFunctionDefinitions::SetElementID ( CElement* pElement, const char* 
 }
 
 
-bool CStaticFunctionDefinitions::SetElementData ( CElement* pElement, const char* szName, const CLuaArgument& Variable, CLuaMain* pLuaMain, bool bSynchronize )
+bool CStaticFunctionDefinitions::SetElementData ( CElement* pElement, const char* szName, const CLuaArgument& Variable, bool bSynchronize )
 {
     assert ( pElement );
     assert ( szName );
@@ -1103,7 +1103,7 @@ bool CStaticFunctionDefinitions::SetElementData ( CElement* pElement, const char
         }
 
         // Set its custom data
-        pElement->SetCustomData ( szName, Variable, pLuaMain, bSynchronize );
+        pElement->SetCustomData ( szName, Variable, bSynchronize );
         return true;
     }
     return false;
@@ -3471,17 +3471,6 @@ bool CStaticFunctionDefinitions::RedirectPlayer ( CElement* pElement, const char
 
         unsigned char ucHostLength = static_cast < unsigned char > ( strlen ( szHost ) );
 
-        if ( ucHostLength == 0 )
-        {
-            if ( pPlayer->GetBitStreamVersion () < 0x2E )
-            {
-                // Reconnect to same server didn't work before bitstream 0x2E, so disconnect with a message
-                pPlayer->Send ( CPlayerDisconnectedPacket ( "Please reconnect" ) );
-                g_pGame->QuitPlayer ( *pPlayer );
-                return true;
-            }
-        }
-
         CBitStream BitStream;
         BitStream.pBitStream->Write ( ucHostLength );
         BitStream.pBitStream->Write ( szHost, ucHostLength );
@@ -3493,7 +3482,7 @@ bool CStaticFunctionDefinitions::RedirectPlayer ( CElement* pElement, const char
             BitStream.pBitStream->Write ( szPassword, ucPasswordLength );
         }
         pPlayer->Send ( CLuaPacket ( FORCE_RECONNECT, *BitStream.pBitStream ) );
-
+        pPlayer->SetQuitReasonForLog( SString( "[Redirected to %s:%d]", szHost, usPort ? usPort : g_pGame->GetConfig()->GetServerPort() ) );
         return true;
     }
     return false;
@@ -5270,6 +5259,9 @@ bool CStaticFunctionDefinitions::IsTrainDerailed ( CVehicle* pVehicle, bool& bDe
 {
     assert ( pVehicle );
 
+    if ( pVehicle->GetVehicleType () != VEHICLE_TRAIN )
+        return false;
+
     bDerailed = pVehicle->IsDerailed ();
     return true;
 }
@@ -5277,6 +5269,9 @@ bool CStaticFunctionDefinitions::IsTrainDerailed ( CVehicle* pVehicle, bool& bDe
 bool CStaticFunctionDefinitions::IsTrainDerailable ( CVehicle* pVehicle, bool& bDerailable )
 {
     assert ( pVehicle );
+
+    if ( pVehicle->GetVehicleType () != VEHICLE_TRAIN )
+        return false;
 
     bDerailable = pVehicle->IsDerailable ();
     return true;
@@ -5287,6 +5282,9 @@ bool CStaticFunctionDefinitions::GetTrainDirection ( CVehicle* pVehicle, bool& b
 {
     assert ( pVehicle );
 
+    if ( pVehicle->GetVehicleType () != VEHICLE_TRAIN )
+        return false;
+
     bDirection = pVehicle->GetTrainDirection ();
     return true;
 }
@@ -5296,8 +5294,39 @@ bool CStaticFunctionDefinitions::GetTrainSpeed ( CVehicle* pVehicle, float& fSpe
 {
     assert ( pVehicle );
 
+    if ( pVehicle->GetVehicleType () != VEHICLE_TRAIN )
+        return false;
+
     const CVector& vecVelocity = pVehicle->GetVelocity ();
     fSpeed = vecVelocity.Length ();
+    return true;
+}
+
+
+bool CStaticFunctionDefinitions::GetTrainTrack ( CVehicle* pVehicle, uchar& ucTrack )
+{
+    assert ( pVehicle );
+    
+    if ( pVehicle->GetVehicleType () != VEHICLE_TRAIN )
+        return false;
+    else if ( pVehicle->IsDerailed () )
+        return false;
+
+    ucTrack = pVehicle->GetTrainTrack ();
+    return true;
+}
+
+
+bool CStaticFunctionDefinitions::GetTrainPosition ( CVehicle* pVehicle, float& fPosition )
+{
+    assert ( pVehicle );
+
+    if ( pVehicle->GetVehicleType () != VEHICLE_TRAIN )
+        return false;
+    else if ( pVehicle->IsDerailed () )
+        return false;
+
+    fPosition = pVehicle->GetTrainPosition ();
     return true;
 }
 
@@ -7140,6 +7169,9 @@ bool CStaticFunctionDefinitions::SetTrainDerailed ( CVehicle* pVehicle, bool bDe
 {
     assert ( pVehicle );
 
+    if ( pVehicle->GetVehicleType () != VEHICLE_TRAIN )
+        return false;
+
     pVehicle->SetDerailed ( bDerailed );
 
     CBitStream BitStream;
@@ -7154,6 +7186,9 @@ bool CStaticFunctionDefinitions::SetTrainDerailed ( CVehicle* pVehicle, bool bDe
 bool CStaticFunctionDefinitions::SetTrainDerailable ( CVehicle* pVehicle, bool bDerailable )
 {
     assert ( pVehicle );
+
+    if ( pVehicle->GetVehicleType () != VEHICLE_TRAIN )
+        return false;
 
     pVehicle->SetDerailable ( bDerailable );
 
@@ -7170,6 +7205,9 @@ bool CStaticFunctionDefinitions::SetTrainDirection ( CVehicle* pVehicle, bool bD
 {
     assert ( pVehicle );
 
+    if ( pVehicle->GetVehicleType () != VEHICLE_TRAIN )
+        return false;
+
     pVehicle->SetTrainDirection ( bDirection );
 
     CBitStream BitStream;
@@ -7185,6 +7223,9 @@ bool CStaticFunctionDefinitions::SetTrainSpeed ( CVehicle* pVehicle, float fSpee
 {
     assert ( pVehicle );
 
+    if ( pVehicle->GetVehicleType () != VEHICLE_TRAIN )
+        return false;
+
     CVector vecVelocity = pVehicle->GetVelocity ();
     vecVelocity.Normalize ();
     vecVelocity *= fSpeed;
@@ -7194,6 +7235,46 @@ bool CStaticFunctionDefinitions::SetTrainSpeed ( CVehicle* pVehicle, float fSpee
     BitStream.pBitStream->Write ( fSpeed );
 
     m_pPlayerManager->BroadcastOnlyJoined ( CElementRPCPacket ( pVehicle, SET_TRAIN_SPEED, *BitStream.pBitStream ) );
+
+    return true;
+}
+
+
+bool CStaticFunctionDefinitions::SetTrainTrack ( CVehicle* pVehicle, uchar ucTrack )
+{
+    assert ( pVehicle );
+
+    if ( pVehicle->GetVehicleType () != VEHICLE_TRAIN )
+        return false;
+    else if ( pVehicle->IsDerailed () )
+        return false;
+
+    pVehicle->SetTrainTrack ( ucTrack );
+
+    CBitStream BitStream;
+    BitStream.pBitStream->Write ( ucTrack );
+
+    m_pPlayerManager->BroadcastOnlyJoined ( CElementRPCPacket ( pVehicle, SET_TRAIN_TRACK, *BitStream.pBitStream ) );
+
+    return true;
+}
+
+
+bool CStaticFunctionDefinitions::SetTrainPosition ( CVehicle* pVehicle, float fPosition )
+{
+    assert ( pVehicle );
+
+    if ( pVehicle->GetVehicleType () != VEHICLE_TRAIN )
+        return false;
+    else if ( pVehicle->IsDerailed () )
+        return false;
+
+    pVehicle->SetTrainPosition ( fPosition );
+
+    CBitStream BitStream;
+    BitStream.pBitStream->Write ( fPosition );
+
+    m_pPlayerManager->BroadcastOnlyJoined ( CElementRPCPacket ( pVehicle, SET_TRAIN_POSITION, *BitStream.pBitStream ) );
 
     return true;
 }

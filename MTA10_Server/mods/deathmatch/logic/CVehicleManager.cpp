@@ -403,7 +403,7 @@ CVehicle* CVehicleManager::Create ( unsigned short usModel, unsigned char ucVari
 }
 
 
-CVehicle* CVehicleManager::CreateFromXML ( CElement* pParent, CXMLNode& Node, CLuaMain* pLuaMain, CEvents* pEvents )
+CVehicle* CVehicleManager::CreateFromXML ( CElement* pParent, CXMLNode& Node, CEvents* pEvents )
 {
     // Create the vehicle
     RandomizeRandomSeed ();
@@ -412,7 +412,7 @@ CVehicle* CVehicleManager::CreateFromXML ( CElement* pParent, CXMLNode& Node, CL
 
     // Verify the vehicle id and load the data from xml
     if ( pVehicle->GetID () == INVALID_ELEMENT_ID ||
-         !pVehicle->LoadFromCustomData ( pLuaMain, pEvents ) )
+         !pVehicle->LoadFromCustomData ( pEvents ) )
     {
         delete pVehicle;
         return NULL;
@@ -609,6 +609,7 @@ bool CVehicleManager::HasDoors ( unsigned short usModel )
             case VT_MOWER:
             case VT_RCCAM:
             case VT_RCGOBLIN:
+            case VT_BLOODRA:
                 break;
             default:
                 bHasDoors = true;

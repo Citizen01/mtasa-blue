@@ -26,8 +26,9 @@ public:
 
     void Show ();
     void Hide ();
+    bool IsVisible ();
 
-    void SetPendingRequests ( const std::vector<SString>& pendingRequests );
+    void SetPendingRequests ( const std::vector<SString>& pendingRequests, WebRequestCallback* pCallback = nullptr );
     void Clear ();
 
 protected:
@@ -38,10 +39,12 @@ protected:
     CGUICheckBox*   m_pCheckRemember;
     CGUIButton*     m_pButtonAllow;
     CGUIButton*     m_pButtonDeny;
+    std::list<WebRequestCallback> m_Callbacks;
 
 private:
-    bool OnAllowButtonClick(CGUIElement* pElement);
-    bool OnDenyButtonClick(CGUIElement* pElement);
+    void Callback ( bool bAllow );
+    bool OnAllowButtonClick ( CGUIElement* pElement );
+    bool OnDenyButtonClick  ( CGUIElement* pElement );
 
 };
 

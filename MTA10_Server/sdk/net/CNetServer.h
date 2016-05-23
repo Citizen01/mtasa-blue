@@ -112,7 +112,7 @@ public:
     virtual void                            GetPingStatus                   ( SFixedString < 32 >* pstrStatus ) = 0;
     virtual bool                            GetSyncThreadStatistics         ( SSyncThreadStatistics* pDest, bool bResetCounters ) = 0;
 
-    virtual NetBitStreamInterface*          AllocateNetServerBitStream      ( unsigned short usBitStreamVersion ) = 0;
+    virtual NetBitStreamInterface*          AllocateNetServerBitStream      ( unsigned short usBitStreamVersion, const void* pData = nullptr, uint uiDataSize = 0, bool bCopyData = false ) = 0;
     virtual void                            DeallocateNetServerBitStream    ( NetBitStreamInterface* bitStream ) = 0;
     virtual bool                            SendPacket                      ( unsigned char ucPacketID, const NetServerPlayerID& playerID, NetBitStreamInterface* bitStream, bool bBroadcast, NetServerPacketPriority packetPriority, NetServerPacketReliability packetReliability, ePacketOrdering packetOrdering = PACKET_ORDERING_DEFAULT ) = 0;
 
@@ -136,6 +136,7 @@ public:
 
     virtual bool                            InitServerId                    ( const char* szPath ) = 0;
     virtual void                            ResendModPackets                ( const NetServerPlayerID& playerID ) = 0;
+    virtual void                            ResendACPackets                 ( const NetServerPlayerID& playerID ) = 0;
 
     virtual void                            GetClientSerialAndVersion       ( const NetServerPlayerID& playerID, SFixedString < 32 >& strSerial, SFixedString < 64 >& strExtra, SFixedString < 32 >& strVersion ) = 0;
     virtual void                            SetNetOptions                   ( const SNetOptions& options ) = 0;
@@ -143,7 +144,7 @@ public:
     virtual bool                            EncryptDumpfile                 ( const char* szClearPathFilename, const char* szEncryptedPathFilename ) { return false; }
     virtual bool                            ValidateHttpCacheFileName       ( const char* szFilename ) { return false; }
     virtual bool                            GetScriptInfo                   ( const char* cpInBuffer, uint uiInSize, SScriptInfo* pOutInfo ) { return false; }
-    virtual bool                            DecryptScript                   ( const char* cpInBuffer, uint uiInSize, const char** pcpOutBuffer, uint* puiOutSize, const char* szScriptName ) { return false; }
+    virtual bool                            DeobfuscateScript               ( const char* cpInBuffer, uint uiInSize, const char** pcpOutBuffer, uint* puiOutSize, const char* szScriptName ) { return false; }
     virtual bool                            GetPlayerPacketUsageStats       ( uchar* packetIdList, uint uiNumPacketIds, SPlayerPacketUsage* pOutStats, uint uiTopCount ) { return false; }
     virtual const char*                     GetLogOutput                    ( void )                                    { return NULL; }
     virtual bool                            IsValidSocket                   ( const NetServerPlayerID& playerID )       { assert( 0 ); return false; }

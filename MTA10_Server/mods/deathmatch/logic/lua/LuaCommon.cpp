@@ -53,7 +53,7 @@ void lua_pushelement ( lua_State* luaVM, CElement* pElement )
         {
             const char* szClass = NULL;
             CLuaMain* pLuaMain = g_pGame->GetLuaManager ()->GetVirtualMachine ( luaVM );
-            if ( pLuaMain->IsOOPEnabled () )
+            if ( pLuaMain && pLuaMain->IsOOPEnabled () )
                 szClass = CLuaClassDefs::GetElementClass ( pElement );
 
             lua_pushobject ( luaVM, szClass, ( void* ) reinterpret_cast < unsigned int * > ( ID.Value () ) );
@@ -69,7 +69,7 @@ void lua_pushacl ( lua_State* luaVM, CAccessControlList* pACL )
 {
     const char* szClass = NULL;
     CLuaMain* pLuaMain = g_pGame->GetLuaManager ()->GetVirtualMachine ( luaVM );
-    if ( pLuaMain->IsOOPEnabled () )
+    if ( pLuaMain && pLuaMain->IsOOPEnabled () )
         szClass = CLuaClassDefs::GetACLClass ( pACL );
 
     lua_pushobject ( luaVM, szClass, ( void* ) reinterpret_cast < unsigned int * > ( pACL->GetScriptID () ) );
@@ -80,7 +80,7 @@ void lua_pushaclgroup ( lua_State* luaVM, CAccessControlListGroup* pGroup )
 {
     const char* szClass = NULL;
     CLuaMain* pLuaMain = g_pGame->GetLuaManager ()->GetVirtualMachine ( luaVM );
-    if ( pLuaMain->IsOOPEnabled () )
+    if ( pLuaMain && pLuaMain->IsOOPEnabled () )
         szClass = CLuaClassDefs::GetACLGroupClass ( pGroup );
 
     lua_pushobject ( luaVM, szClass, ( void* ) reinterpret_cast < unsigned int * > ( pGroup->GetScriptID () ) );
@@ -91,7 +91,7 @@ void lua_pushaccount ( lua_State* luaVM, CAccount* pAccount )
 {
     const char* szClass = NULL;
     CLuaMain* pLuaMain = g_pGame->GetLuaManager ()->GetVirtualMachine ( luaVM );
-    if ( pLuaMain->IsOOPEnabled () )
+    if ( pLuaMain && pLuaMain->IsOOPEnabled () )
         szClass = CLuaClassDefs::GetAccountClass ( pAccount );
 
     lua_pushobject ( luaVM, szClass, ( void* ) reinterpret_cast < unsigned int * > ( pAccount->GetScriptID () ) );
@@ -102,7 +102,7 @@ void lua_pushresource ( lua_State* luaVM, CResource* pResource )
 {
     const char* szClass = NULL;
     CLuaMain* pLuaMain = g_pGame->GetLuaManager ()->GetVirtualMachine ( luaVM );
-    if ( pLuaMain->IsOOPEnabled () )
+    if ( pLuaMain && pLuaMain->IsOOPEnabled () )
         szClass = CLuaClassDefs::GetResourceClass ( pResource );
 
     lua_pushobject ( luaVM, szClass, ( void* ) reinterpret_cast < unsigned int * > ( pResource->GetScriptID () ) );
@@ -113,7 +113,7 @@ void lua_pushtextdisplay ( lua_State* luaVM, CTextDisplay* pDisplay )
 {
     const char* szClass = NULL;
     CLuaMain* pLuaMain = g_pGame->GetLuaManager ()->GetVirtualMachine ( luaVM );
-    if ( pLuaMain->IsOOPEnabled () )
+    if ( pLuaMain && pLuaMain->IsOOPEnabled () )
         szClass = CLuaClassDefs::GetTextDisplayClass ( pDisplay );
 
     lua_pushobject ( luaVM, szClass, ( void* ) reinterpret_cast < unsigned int * > ( pDisplay->GetScriptID () ) );
@@ -124,7 +124,7 @@ void lua_pushtextitem ( lua_State* luaVM, CTextItem* pItem )
 {
     const char* szClass = NULL;
     CLuaMain* pLuaMain = g_pGame->GetLuaManager ()->GetVirtualMachine ( luaVM );
-    if ( pLuaMain->IsOOPEnabled () )
+    if ( pLuaMain && pLuaMain->IsOOPEnabled () )
         szClass = CLuaClassDefs::GetTextItemClass ( pItem );
 
     lua_pushobject ( luaVM, szClass, ( void* ) reinterpret_cast < unsigned int * > ( pItem->GetScriptID () ) );
@@ -135,7 +135,7 @@ void lua_pushtimer ( lua_State* luaVM, CLuaTimer* pTimer )
 {    
     const char* szClass = NULL;
     CLuaMain* pLuaMain = g_pGame->GetLuaManager ()->GetVirtualMachine ( luaVM );
-    if ( pLuaMain->IsOOPEnabled () )
+    if ( pLuaMain && pLuaMain->IsOOPEnabled () )
         szClass = CLuaClassDefs::GetTimerClass ( pTimer );
 
     lua_pushobject ( luaVM, szClass, ( void* ) reinterpret_cast < unsigned int * > ( pTimer->GetScriptID () ) );
@@ -146,7 +146,7 @@ void lua_pushxmlnode ( lua_State* luaVM, CXMLNode* pElement )
 {
     const char* szClass = NULL;
     CLuaMain* pLuaMain = g_pGame->GetLuaManager ()->GetVirtualMachine ( luaVM );
-    if ( pLuaMain->IsOOPEnabled () )
+    if ( pLuaMain && pLuaMain->IsOOPEnabled () )
         szClass = CLuaClassDefs::GetXmlNodeClass ( pElement );
 
     lua_pushobject ( luaVM, szClass, ( void* ) reinterpret_cast < unsigned int * > ( pElement->GetID () ) );
@@ -157,7 +157,7 @@ void lua_pushban ( lua_State* luaVM, CBan* pBan )
 {
     const char* szClass = NULL;
     CLuaMain* pLuaMain = g_pGame->GetLuaManager ()->GetVirtualMachine ( luaVM );
-    if ( pLuaMain->IsOOPEnabled () )
+    if ( pLuaMain && pLuaMain->IsOOPEnabled () )
         szClass = CLuaClassDefs::GetBanClass ( pBan );
 
     lua_pushobject ( luaVM, szClass, ( void* ) reinterpret_cast < unsigned int * > ( pBan->GetScriptID () ) );
@@ -168,7 +168,7 @@ void lua_pushquery ( lua_State* luaVM, CDbJobData* pJobData )
 {
     const char* szClass = NULL;
     CLuaMain* pLuaMain = g_pGame->GetLuaManager ()->GetVirtualMachine ( luaVM );
-    if ( pLuaMain->IsOOPEnabled () )
+    if ( pLuaMain && pLuaMain->IsOOPEnabled () )
         szClass = CLuaClassDefs::GetQueryClass ( pJobData );
 
     lua_pushobject ( luaVM, szClass, ( void* ) reinterpret_cast < unsigned int * > ( pJobData->GetId() ) );
@@ -357,7 +357,7 @@ void lua_getclass ( lua_State* luaVM, const char* szName )
 }
 
 
-void lua_registerclass ( lua_State* luaVM, const char* szName, const char* szParent )
+void lua_registerclass ( lua_State* luaVM, const char* szName, const char* szParent, bool bRegisterWithEnvironment )
 {
     if ( szParent != NULL )
     {
@@ -381,9 +381,10 @@ void lua_registerclass ( lua_State* luaVM, const char* szName, const char* szPar
 
     lua_pop ( luaVM, 1 );
 
-    // register with environment
-    lua_getfield ( luaVM, -1, "__class" );
-    lua_setglobal ( luaVM, szName );
+    if ( bRegisterWithEnvironment ) {
+        lua_getfield ( luaVM, -1, "__class" );
+        lua_setglobal ( luaVM, szName );
+    }
 
     lua_pop ( luaVM, 1 );
 }
@@ -439,6 +440,8 @@ void lua_classfunction ( lua_State* luaVM, const char* szFunction, const char* f
     {
         lua_classfunction ( luaVM, szFunction, szFunction, pFunction->GetAddress () );
     }
+    else 
+        dassert ( false );
 }
 
 void lua_classvariable ( lua_State* luaVM, const char* szVariable, const char* szACLNameSet, const char* szACLNameGet, lua_CFunction set, lua_CFunction get, bool bACLIgnore )
@@ -493,13 +496,20 @@ void lua_classvariable ( lua_State* luaVM, const char* szVariable, const char* s
     lua_CFunction fnGet = NULL;
 
     if ( set )
+    {
         if ( CLuaCFunction* pSet = CLuaCFunctions::GetFunction ( set ) )
-            fnSet = pSet->GetAddress();
+            fnSet = pSet->GetAddress ();
+        else
+            dassert ( false );
+    }
 
-    if ( get )
+
+    if ( get ) {
         if ( CLuaCFunction* pGet = CLuaCFunctions::GetFunction ( get ) )
-            fnGet = pGet->GetAddress();
-
+            fnGet = pGet->GetAddress ();
+        else 
+            dassert ( false );
+    }
     if ( fnSet || fnGet )
         lua_classvariable ( luaVM, szVariable, "", "", fnSet, fnGet, false );
 }

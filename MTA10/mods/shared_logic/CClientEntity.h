@@ -82,6 +82,7 @@ enum eClientEntityType
     CCLIENTSCREENSOURCE,
     CCLIENTRENDERTARGET,
     CCLIENTBROWSER,
+    CCLIENTSEARCHLIGHT,
     CCLIENTUNKNOWN,
 };
 
@@ -146,6 +147,7 @@ enum eCClientEntityClassTypes
     CLASS_CClientWeapon,
     CLASS_CClientEffect,
     CLASS_CClientPointLights,
+    CLASS_CClientSearchLight
 };
 
 
@@ -156,7 +158,6 @@ public:
                                                 CClientEntity           ( ElementID ID );
     virtual                                     ~CClientEntity          ( void );
 
-    virtual bool                                CanBeDeleted            ( void )                    { return true; };
 
     virtual eClientEntityType                   GetType                 ( void ) const = 0;
     inline bool                                 IsLocalEntity           ( void )                    { return m_ID >= MAX_SERVER_ELEMENTS; };
@@ -207,7 +208,7 @@ public:
     bool                                        GetCustomDataFloat      ( const char * szKey, float& fOut, bool bInheritData );
     bool                                        GetCustomDataInt        ( const char * szKey, int& iOut, bool bInheritData );
     bool                                        GetCustomDataBool       ( const char * szKey, bool& bOut, bool bInheritData );
-    void                                        SetCustomData           ( const char* szName, const CLuaArgument& Variable, CLuaMain* pLuaMain );
+    void                                        SetCustomData           ( const char* szName, const CLuaArgument& Variable );
     void                                        DeleteCustomData        ( const char* szName );
 
     virtual bool                                GetMatrix               ( CMatrix& matrix ) const;
@@ -271,9 +272,9 @@ public:
     void                                        AddCollision                ( CClientColShape* pShape )     { m_Collisions.push_back ( pShape ); }
     void                                        RemoveCollision             ( CClientColShape* pShape )     { if ( !m_Collisions.empty() ) m_Collisions.remove ( pShape ); }
     bool                                        CollisionExists             ( CClientColShape* pShape );
-    void                                        RemoveAllCollisions         ( bool bNotify = false );
-    std::list < CClientColShape* > ::iterator   CollisionsBegin             ( void )                        { return m_Collisions.begin (); }
-    std::list < CClientColShape* > ::iterator   CollisionsEnd               ( void )                        { return m_Collisions.end (); }
+    void                                        RemoveAllCollisions         ( void );
+    CFastList < CClientColShape* > ::iterator   CollisionsBegin             ( void )                        { return m_Collisions.begin (); }
+    CFastList < CClientColShape* > ::iterator   CollisionsEnd               ( void )                        { return m_Collisions.end (); }
 
     inline CElementGroup*                       GetElementGroup             ( void )                        { return m_pElementGroup; }
     inline void                                 SetElementGroup             ( CElementGroup * elementGroup ){ m_pElementGroup = elementGroup; }
@@ -357,7 +358,7 @@ protected:
     bool                                        m_bSystemEntity;
     CMapEventManager*                           m_pEventManager;
     CModelInfo*                                 m_pModelInfo;
-    std::list < class CClientColShape* >        m_Collisions;
+    CFastList < class CClientColShape* >        m_Collisions;
     CElementGroup*                              m_pElementGroup;
     std::list < CClientPed * >                  m_OriginSourceUsers;
     std::list < CClientPed * >                  m_Contacts;
@@ -367,6 +368,7 @@ protected:
     bool                                        m_bDoubleSidedInit;
     bool                                        m_bWorldIgnored;
     bool                                        m_bCallPropagationEnabled;
+    bool                                        m_bDisallowCollisions;
 
 public:
     // Optimization for getElementsByType starting at root

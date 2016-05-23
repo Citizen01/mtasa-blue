@@ -111,10 +111,11 @@ bool SharedUtil::FileLoad ( const SString& strFilename, std::vector < char >& bu
     // Get size
     fseek ( fh, 0, SEEK_END );
     int size = ftell ( fh );
-    rewind ( fh );
 
     // Set offset
+    iOffset = Min ( iOffset, size );
     fseek ( fh, iOffset, SEEK_SET );
+    size -= iOffset;
 
     int bytesRead = 0;
     if ( size > 0 && size < 1e9 )   // 1GB limit
@@ -527,7 +528,7 @@ bool SharedUtil::DelTree ( const SString& strPath, const SString& strInsideHere 
     }
 
     DWORD dwBufferSize = ( wstrPath.length() + 3 ) * sizeof( wchar_t );
-    wchar_t *szBuffer = static_cast < wchar_t* > ( alloca ( dwBufferSize ) );
+    CScopeAlloc < wchar_t > szBuffer( dwBufferSize );
     memset ( szBuffer, 0, dwBufferSize );
     wcsncpy ( szBuffer, wstrPath, wstrPath.length() );
     SHFILEOPSTRUCTW sfos;

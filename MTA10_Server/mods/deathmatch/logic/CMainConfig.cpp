@@ -120,7 +120,9 @@ bool CMainConfig::Load ( void )
     // Parse it
     if ( !m_pFile->Parse () )
     {
-        CLogger::ErrorPrintf ( "Error parsing config file\n" );
+        SString strParseErrorDesc;
+        m_pFile->GetLastError( strParseErrorDesc );
+        CLogger::ErrorPrintf ( "Error parsing %s - %s\n", *ExtractFilename( GetFileName() ), *strParseErrorDesc );
         return false;
     }
 
@@ -1449,6 +1451,8 @@ const std::vector < SIntSetting >& CMainConfig::GetIntSettingList ( void )
             { true, true,   0,      1,      2,      "minclientversion_auto_update",         &m_iMinClientVersionAutoUpdate,             NULL },
             { true, true,   0,      0,      100,    "server_logic_fps_limit",               &m_iServerLogicFpsLimit,                    NULL },
             { true, true,   0,      1,      1,      "bad_net_bullet_fix",                   &m_bBadNetBulletFixEnabled,                 NULL },
+            { true, true,   0,      1,      1,      "crash_dump_upload",                    &m_bCrashDumpUploadEnabled,                 NULL },
+            { true, true,   0,      1,      1,      "filter_duplicate_log_lines",           &m_bFilterDuplicateLogLinesEnabled,         NULL },
         };
 
     static std::vector < SIntSetting > settingsList;

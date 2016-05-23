@@ -142,7 +142,7 @@ void CWebCore::AddEventToEventQueue ( std::function<void(void)> event, CWebView*
 #ifndef MTA_DEBUG
     UNREFERENCED_PARAMETER(name);
 #endif
-    if ( pWebView->IsBeingDestroyed () )
+    if ( pWebView && pWebView->IsBeingDestroyed () )
         return;
 
     std::lock_guard<std::mutex> lock ( m_EventQueueMutex );
@@ -206,12 +206,12 @@ eURLState CWebCore::GetURLState ( const SString& strURL, bool bOutputDebug )
             return eURLState::WEBPAGE_ALLOWED;
         else
         {
-            if ( m_bTestmodeEnabled && bOutputDebug ) g_pCore->DebugPrintfColor ( "[BROWSER] Blocked page: %s", 255, 0, 0, strURL.c_str() );
+            if ( m_bTestmodeEnabled && bOutputDebug ) DebugOutputThreadsafe ( SString ( "[BROWSER] Blocked page: %s", strURL.c_str () ), 255, 0, 0 );
             return eURLState::WEBPAGE_DISALLOWED;
         }
     }
 
-    if ( m_bTestmodeEnabled && bOutputDebug ) g_pCore->DebugPrintfColor ( "[BROWSER] Blocked page: %s", 255, 0, 0, strURL.c_str() );
+    if ( m_bTestmodeEnabled && bOutputDebug ) DebugOutputThreadsafe ( SString ( "[BROWSER] Blocked page: %s", strURL.c_str () ), 255, 0, 0 );
     return eURLState::WEBPAGE_NOT_LISTED;
 }
 
@@ -302,7 +302,7 @@ void CWebCore::AddBlockedPage ( const SString& strURL, eWebFilterType filterType
     m_Whitelist[strURL] = std::pair<bool, eWebFilterType> ( false, filterType );
 }
 
-void CWebCore::RequestPages ( const std::vector<SString>& pages )
+void CWebCore::RequestPages ( const std::vector<SString>& pages, WebRequestCallback* pCallback )
 {
     // Add to pending pages queue
     bool bNewItem = false;
@@ -323,8 +323,15 @@ void CWebCore::RequestPages ( const std::vector<SString>& pages )
             m_pRequestsGUI = new CWebsiteRequests;
 
         // Set pending requests memo content and show the window
-        m_pRequestsGUI->SetPendingRequests ( m_PendingRequests );
+        m_pRequestsGUI->SetPendingRequests ( m_PendingRequests, pCallback );
         m_pRequestsGUI->Show ();
+    }
+    else
+    {
+        // Call callback immediately if nothing has changed (all entries are most likely already on the whitelist)
+        // There is still the possibility that all websites are blacklisted; this is not the usual case tho, so ignore for now (TODO)
+        if ( pCallback )
+            (*pCallback)( true, pages );
     }
 }
 
@@ -358,6 +365,18 @@ void CWebCore::AllowPendingPages ( bool bRemember )
 void CWebCore::DenyPendingPages ()
 {
     m_PendingRequests.clear ();
+}
+
+bool CWebCore::IsRequestsGUIVisible ()
+{
+    return m_pRequestsGUI && m_pRequestsGUI->IsVisible ();
+}
+
+void CWebCore::DebugOutputThreadsafe ( const SString& message, unsigned char R, unsigned char G, unsigned char B )
+{
+    AddEventToEventQueue( [message, R, G, B]() {
+        g_pCore->DebugEchoColor ( message, R, G, B );
+    }, nullptr, "DebugOutputThreadsafe" );
 }
 
 bool CWebCore::GetRemotePagesEnabled ()
@@ -473,7 +492,7 @@ bool CWebCore::UpdateListsFromMaster ()
             OutputDebugLine ( "Updating white- and blacklist..." );
         #endif
             g_pCore->GetNetwork ()->GetHTTPDownloadManager ( EDownloadModeType::WEBBROWSER_LISTS )->QueueFile ( SString("%s?type=getrev", BROWSER_UPDATE_URL),
-                NULL, 0, NULL, 0, false, this, &CWebCore::StaticFetchRevisionProgress, false, 3 );
+                NULL, 0, NULL, 0, false, this, &CWebCore::StaticFetchRevisionFinished, false, 3 );
 
             pLastUpdateNode->SetTagContent ( SString ( "%d", (long long)currentTime ) );
             m_pXmlConfig->Write ();
@@ -653,10 +672,10 @@ void CWebCore::GetFilterEntriesByType ( std::vector<std::pair<SString, bool>>& o
     }
 }
 
-bool CWebCore::StaticFetchRevisionProgress ( double dDownloadNow, double dDownloadTotal, char* pCompletedData, size_t completedLength, void *pObj, bool bComplete, int iError )
+void CWebCore::StaticFetchRevisionFinished ( char* pCompletedData, size_t completedLength, void *pObj, bool bSuccess, int iErrorCode )
 {
     CWebCore* pWebCore = static_cast < CWebCore* > ( pObj );
-    if ( bComplete )
+    if ( bSuccess )
     {
         SString strData = pCompletedData;
         SString strWhiteRevision, strBlackRevision;
@@ -668,7 +687,7 @@ bool CWebCore::StaticFetchRevisionProgress ( double dDownloadNow, double dDownlo
             if ( iWhiteListRevision > pWebCore->m_iWhitelistRevision )
             {
                 g_pCore->GetNetwork ()->GetHTTPDownloadManager ( EDownloadModeType::WEBBROWSER_LISTS )->QueueFile ( SString("%s?type=fetchwhite", BROWSER_UPDATE_URL ),
-                    NULL, 0, NULL, 0, false, pWebCore, &CWebCore::StaticFetchWhitelistProgress, false, 3 );
+                    NULL, 0, NULL, 0, false, pWebCore, &CWebCore::StaticFetchWhitelistFinished, false, 3 );
 
                 pWebCore->m_iWhitelistRevision = iWhiteListRevision;
             }
@@ -676,27 +695,25 @@ bool CWebCore::StaticFetchRevisionProgress ( double dDownloadNow, double dDownlo
             if ( iBlackListRevision > pWebCore->m_iBlacklistRevision )
             {
                 g_pCore->GetNetwork ()->GetHTTPDownloadManager ( EDownloadModeType::WEBBROWSER_LISTS )->QueueFile ( SString("%s?type=fetchblack", BROWSER_UPDATE_URL),
-                    NULL, 0, NULL, 0, false, pWebCore, &CWebCore::StaticFetchBlacklistProgress, false, 3 );
+                    NULL, 0, NULL, 0, false, pWebCore, &CWebCore::StaticFetchBlacklistFinished, false, 3 );
 
                 pWebCore->m_iBlacklistRevision = iBlackListRevision;
             }
         }
     }
-
-    return true;
 }
 
-bool CWebCore::StaticFetchWhitelistProgress ( double dDownloadNow, double dDownloadTotal, char* pCompletedData, size_t completedLength, void *pObj, bool bComplete, int iError )
+void CWebCore::StaticFetchWhitelistFinished ( char* pCompletedData, size_t completedLength, void *pObj, bool bSuccess, int iErrorCode )
 {
-    if ( !bComplete )
-        return false;
+    if ( !bSuccess )
+        return;
 
     CWebCore* pWebCore = static_cast < CWebCore* > ( pObj );
     if ( !pWebCore->m_pXmlConfig )
-        return false;
+        return;
 
     if ( !pWebCore->MakeSureXMLNodesExist () )
-        return false;
+        return;
 
     CXMLNode* pRootNode = pWebCore->m_pXmlConfig->GetRootNode ();
     std::vector<SString> whitelist;
@@ -704,7 +721,7 @@ bool CWebCore::StaticFetchWhitelistProgress ( double dDownloadNow, double dDownl
     strData.Split ( ";", whitelist );
     CXMLNode* pListNode = pRootNode->FindSubNode ( "globalwhitelist" );
     if ( !pListNode )
-        return false;
+        return;
     pListNode->DeleteAllSubNodes ();
 
     for ( std::vector<SString>::const_iterator iter = whitelist.begin (); iter != whitelist.end (); ++iter )
@@ -716,7 +733,7 @@ bool CWebCore::StaticFetchWhitelistProgress ( double dDownloadNow, double dDownl
     // Set whitelist revision
     CXMLNode* pNode = pRootNode->FindSubNode ( "whitelistrev" );
     if ( !pNode )
-        return false;
+        return;
     pNode->SetTagContent ( pWebCore->m_iWhitelistRevision );
 
     // Write changes to the XML file
@@ -727,20 +744,19 @@ bool CWebCore::StaticFetchWhitelistProgress ( double dDownloadNow, double dDownl
 #ifdef MTA_DEBUG
     OutputDebugLine ( "Updated whitelist!" );
 #endif
-    return true;
 }
 
-bool CWebCore::StaticFetchBlacklistProgress ( double dDownloadNow, double dDownloadTotal, char* pCompletedData, size_t completedLength, void *pObj, bool bComplete, int iError )
+void CWebCore::StaticFetchBlacklistFinished ( char* pCompletedData, size_t completedLength, void *pObj, bool bSuccess, int iErrorCode )
 {
-    if ( !bComplete )
-        return false;
+    if ( !bSuccess )
+        return;
 
     CWebCore* pWebCore = static_cast < CWebCore* > ( pObj );
     if ( !pWebCore->m_pXmlConfig )
-        return false;
+        return;
 
     if ( !pWebCore->MakeSureXMLNodesExist () )
-        return false;
+        return;
 
     CXMLNode* pRootNode = pWebCore->m_pXmlConfig->GetRootNode ();
     std::vector<SString> blacklist;
@@ -748,7 +764,7 @@ bool CWebCore::StaticFetchBlacklistProgress ( double dDownloadNow, double dDownl
     strData.Split ( ";", blacklist );
     CXMLNode* pListNode = pRootNode->FindSubNode ( "globalblacklist" );
     if ( !pListNode )
-        return false;
+        return;
     pListNode->DeleteAllSubNodes ();
 
     for ( std::vector<SString>::const_iterator iter = blacklist.begin (); iter != blacklist.end (); ++iter )
@@ -760,7 +776,7 @@ bool CWebCore::StaticFetchBlacklistProgress ( double dDownloadNow, double dDownl
     // Set blacklist revision
     CXMLNode* pNode = pRootNode->FindSubNode ( "blacklistrev" );
     if ( !pNode )
-        return false;
+        return;
     pNode->SetTagContent ( pWebCore->m_iBlacklistRevision );
 
     // Write changes to the XML file
@@ -771,12 +787,19 @@ bool CWebCore::StaticFetchBlacklistProgress ( double dDownloadNow, double dDownl
 #ifdef MTA_DEBUG
     OutputDebugLine ( "Updated browser blacklist!" );
 #endif
-    return true;
 }
 
 //////////////////////////////////////////////////////////////
 //                CefApp implementation                     //
 //////////////////////////////////////////////////////////////
+CefRefPtr<CefResourceHandler> CCefApp::HandleError ( const SString& strError, unsigned int uiError )
+{
+    auto stream = CefStreamReader::CreateForData ( (void*)strError.c_str(), strError.length());
+    return new CefStreamResourceHandler ( 
+            uiError, strError, "text/plain", CefResponse::HeaderMap(), stream);
+}
+
+
 void CCefApp::OnRegisterCustomSchemes ( CefRefPtr < CefSchemeRegistrar > registrar )
 {
     // Register custom MTA scheme (has to be called in all proceseses)
@@ -785,6 +808,12 @@ void CCefApp::OnRegisterCustomSchemes ( CefRefPtr < CefSchemeRegistrar > registr
 
 CefRefPtr<CefResourceHandler> CCefApp::Create ( CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, const CefString& scheme_name, CefRefPtr<CefRequest> request )
 {
+    // browser or frame are NULL if the request does not orginate from a browser window
+    // This is for exmaple true for the application cache or CEFURLRequests
+    // (http://www.html5rocks.com/en/tutorials/appcache/beginner/)
+    if ( !browser || !frame )
+        return nullptr;
+
     CWebCore* pWebCore = static_cast<CWebCore*> ( g_pCore->GetWebCore () );
     auto pWebView = pWebCore->FindWebView ( browser );
     if ( !pWebView || !pWebView->IsLocal () )
@@ -812,7 +841,7 @@ CefRefPtr<CefResourceHandler> CCefApp::Create ( CefRefPtr<CefBrowser> browser, C
                 request->SetURL ( "http://mta/local/" + resourceName + resourcePath );
                 return Create ( browser, frame, "http", request );
             }
-            return nullptr;
+            return HandleError ("404 - Not found", 404);
         }
         
         // Redirect mtalocal://* to http://mta/local/*, call recursively
@@ -829,13 +858,13 @@ CefRefPtr<CefResourceHandler> CCefApp::Create ( CefRefPtr<CefBrowser> browser, C
         SString path = UTF16ToMbUTF8 ( urlParts.path.str ).substr ( 1 ); // Remove slash at the front
         size_t slashPos = path.find ( '/' );
         if ( slashPos == std::string::npos )
-            return nullptr;
+            return HandleError ( "404 - Not found", 404 );
 
         SString resourceName = path.substr ( 0, slashPos );
         SString resourcePath = path.substr ( slashPos + 1 );
 
         if ( resourcePath.empty () )
-            return nullptr;
+            return HandleError ( "404 - Not found", 404 );
 
         // Get mime type from extension
         CefString mimeType;
@@ -914,17 +943,21 @@ CefRefPtr<CefResourceHandler> CCefApp::Create ( CefRefPtr<CefBrowser> browser, C
 
             // Calculate absolute path
             if ( !pWebView->GetFullPathFromLocal ( path ) )
-                return nullptr;
+                return HandleError ( "404 - Not found", 404 );
+
+            // Verify local files
+            if ( !pWebView->VerifyFile ( path ) )
+                return HandleError ( "403 - Access Denied", 403 );
         
             // Finally, load the file stream
             auto stream = CefStreamReader::CreateForFile ( path );
             if ( stream.get () )
                 return new CefStreamResourceHandler ( mimeType, stream );
+            return HandleError ( "404 - Not found", 404 );
         }
-
-        return nullptr;
     }
 
     // Return null if there is no matching scheme
+    // This falls back to letting CEF handle the request
     return nullptr;
 }

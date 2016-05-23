@@ -55,6 +55,7 @@ public:
     static bool                         ShowChat                            ( bool bShow );
     static bool                         SetClipboard                        ( SString& strText );
     static bool                         GetClipboard                        ( SString& strText );
+    static bool                         SetWindowFlashing                   ( bool flash, uint count );
 
     // Element get funcs
     static CClientEntity*               GetRootElement                      ( void );
@@ -89,7 +90,7 @@ public:
     static CClientDummy*                CreateElement                       ( CResource& Resource, const char* szTypeName, const char* szID );
     static bool                         DestroyElement                      ( CClientEntity& Entity );
     static bool                         SetElementID                        ( CClientEntity& Entity, const char* szID );
-    static bool                         SetElementData                      ( CClientEntity& Entity, const char* szName, CLuaArgument& Variable, CLuaMain& LuaMain, bool bSynchronize );
+    static bool                         SetElementData                      ( CClientEntity& Entity, const char* szName, CLuaArgument& Variable, bool bSynchronize );
     static bool                         RemoveElementData                   ( CClientEntity& Entity, const char* szName );
     static bool                         SetElementMatrix                    ( CClientEntity& Entity, const CMatrix& matrix );
     static bool                         SetElementPosition                  ( CClientEntity& Entity, const CVector& vecPosition, bool bWarp = true );
@@ -135,6 +136,7 @@ public:
 
     // Ped funcs
     static CClientPed*                  CreatePed                           ( CResource& Resource, unsigned long ulModel, const CVector& vecPosition, float fRotation );
+    static bool                         KillPed                             ( CClientEntity& Entity, CClientEntity* pKiller, unsigned char ucKillerWeapon, unsigned char ucBodyPart, bool bStealth );
 
     static CClientEntity*               GetPedTarget                        ( CClientPed& Ped );
     static bool                         GetPedTargetCollision               ( CClientPed& Ped, CVector& vecOrigin );
@@ -211,6 +213,8 @@ public:
     static bool                         IsTrainDerailable                   ( CClientVehicle& Vehicle, bool& bIsDerailable );
     static bool                         GetTrainDirection                   ( CClientVehicle& Vehicle, bool& bDirection );
     static bool                         GetTrainSpeed                       ( CClientVehicle& Vehicle, float& fSpeed );
+    static bool                         GetTrainTrack                       ( CClientVehicle& Vehicle, uchar& ucTrack );
+    static bool                         GetTrainPosition                    ( CClientVehicle& Vehicle, float& fPosition );
     static bool                         IsTrainChainEngine                  ( CClientVehicle& Vehicle, bool& bChainEngine );
     static bool                         IsVehicleBlown                      ( CClientVehicle& Vehicle, bool& bBlown );
     static bool                         GetVehicleHeadLightColor            ( CClientVehicle& Vehicle, SColor& outColor );
@@ -255,6 +259,8 @@ public:
     static bool                         SetTrainDerailable                  ( CClientVehicle& Vehicle, bool bDerailable );
     static bool                         SetTrainDirection                   ( CClientVehicle& Vehicle, bool bDirection );
     static bool                         SetTrainSpeed                       ( CClientVehicle& Vehicle, float fSpeed );
+    static bool                         SetTrainTrack                       ( CClientVehicle& Vehicle, uchar ucTrack );
+    static bool                         SetTrainPosition                    ( CClientVehicle& Vehicle, float fPosition );
     static bool                         SetVehicleHeadLightColor            ( CClientEntity& Vehicle, const SColor color );
     static bool                         SetVehicleDoorOpenRatio             ( CClientEntity& Vehicle, unsigned char ucDoor, float fRatio, unsigned long ulTime = 0 );
     static bool                         SetVehicleSirens                    ( CClientVehicle& pVehicle, unsigned char ucSirenID, SSirenInfo tSirenInfo );
@@ -318,6 +324,9 @@ public:
     static bool                         SetLightColor                       ( CClientPointLights* pLight, SColor color );
     static bool                         SetLightDirection                   ( CClientPointLights* pLight, CVector vecDirection );
 
+    // Search light funcs
+    static CClientSearchLight*          CreateSearchLight                   ( CResource& Resource, const CVector& vecStart, const CVector& vecEnd, float startRadius, float endRadius, bool renderSpot );
+    
     // Audio funcs
     static bool                         PlaySoundFrontEnd                   ( unsigned char ucSound );
     static bool                         SetAmbientSoundEnabled              ( eAmbientSoundType eType, bool bMute );

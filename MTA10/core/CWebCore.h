@@ -64,12 +64,15 @@ public:
     void                InitialiseWhiteAndBlacklist ( bool bAddHardcoded = true, bool bAddDynamic = true );
     void                AddAllowedPage      ( const SString& strURL, eWebFilterType filterType );
     void                AddBlockedPage      ( const SString& strURL, eWebFilterType filterType );
-    void                RequestPages        ( const std::vector<SString>& pages );
+    void                RequestPages        ( const std::vector<SString>& pages, WebRequestCallback* pCallback = nullptr );
     void                AllowPendingPages   ( bool bRemember );
     void                DenyPendingPages    ();
+    std::vector<SString>& GetPendingRequests () { return m_PendingRequests; };
+    bool                IsRequestsGUIVisible();
 
     inline bool         IsTestModeEnabled   () { return m_bTestmodeEnabled; };
     inline void         SetTestModeEnabled  ( bool bEnabled ) { m_bTestmodeEnabled = bEnabled; };
+    void                DebugOutputThreadsafe ( const SString& message, unsigned char R, unsigned char G, unsigned char B );
 
     inline CWebViewInterface* GetFocusedWebView () { return (CWebViewInterface*) m_pFocusedWebView; };
     inline void         SetFocusedWebView   ( CWebView* pWebView ) { m_pFocusedWebView = pWebView; };
@@ -90,9 +93,9 @@ public:
     void                LoadListsFromXML     ( bool bWhitelist, bool bBlacklist, bool bCustomLists );
     void                WriteCustomList     ( const SString& strListName, const std::vector<SString>& customList, bool bReset = true );
     void                GetFilterEntriesByType( std::vector<std::pair<SString, bool>>& outEntries, eWebFilterType filterType, eWebFilterState state = eWebFilterState::WEBFILTER_ALL );
-    static bool         StaticFetchRevisionProgress  ( double dDownloadNow, double dDownloadTotal, char* pCompletedData, size_t completedLength, void *pObj, bool bComplete, int iError );
-    static bool         StaticFetchWhitelistProgress ( double dDownloadNow, double dDownloadTotal, char* pCompletedData, size_t completedLength, void *pObj, bool bComplete, int iError );
-    static bool         StaticFetchBlacklistProgress ( double dDownloadNow, double dDownloadTotal, char* pCompletedData, size_t completedLength, void *pObj, bool bComplete, int iError );
+    static void         StaticFetchRevisionFinished  ( char* pCompletedData, size_t completedLength, void *pObj, bool bSuccess, int iErrorCode );
+    static void         StaticFetchWhitelistFinished ( char* pCompletedData, size_t completedLength, void *pObj, bool bSuccess, int iErrorCode );
+    static void         StaticFetchBlacklistFinished ( char* pCompletedData, size_t completedLength, void *pObj, bool bSuccess, int iErrorCode );
     
 private:
     typedef std::pair<bool, eWebFilterType> WebFilterPair;
@@ -117,6 +120,9 @@ private:
 class CCefApp : public CefApp, public CefSchemeHandlerFactory
 {
 public:
+    // Error Handler
+    static CefRefPtr<CefResourceHandler> CCefApp::HandleError ( const SString& strError, unsigned int uiError );
+
     virtual void OnRegisterCustomSchemes ( CefRefPtr<CefSchemeRegistrar> registrar ) override;
 
     // CefSchemeHandlerFactory methods

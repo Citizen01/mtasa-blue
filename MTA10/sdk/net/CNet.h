@@ -24,7 +24,8 @@ namespace EDownloadMode
         NONE,
         CORE_ASE_LIST,
         CORE_UPDATER,
-        RESOURCE_INITIAL_FILES,
+        RESOURCE_INITIAL_FILES_INTERNAL,
+        RESOURCE_INITIAL_FILES_EXTERNAL,
         RESOURCE_SINGULAR_FILES,
         CALL_REMOTE,
         WEBBROWSER_LISTS,
@@ -95,9 +96,6 @@ public:
     virtual unsigned char               GetConnectionError          ( void ) = 0;
     virtual void                        SetConnectionError          ( unsigned char ucConnectionError ) = 0;
 
-    virtual unsigned char               GetImmediateError           ( void ) = 0;
-    virtual void                        SetImmediateError           ( unsigned char ucImmediateError ) = 0;
-
     virtual void                        Reset                       ( void ) = 0;
 
     virtual CNetHTTPDownloadManagerInterface*   GetHTTPDownloadManager          ( EDownloadModeType iMode ) = 0;
@@ -127,7 +125,7 @@ public:
     virtual bool                        ValidateBinaryFileName      ( const char* szFilename ) = 0;
     virtual CBinaryFileInterface*       AllocateBinaryFile          ( void ) = 0;
     virtual bool                        EncryptDumpfile             ( const char* szClearPathFilename, const char* szEncryptedPathFilename ) = 0;
-    virtual bool                        DecryptScript               ( const char* cpInBuffer, uint uiInSize, const char** pcpOutBuffer, uint* puiOutSize, const char* szScriptName ) = 0;
+    virtual bool                        DeobfuscateScript           ( const char* cpInBuffer, uint uiInSize, const char** pcpOutBuffer, uint* puiOutSize, const char* szScriptName ) = 0;
     virtual void                        PostCrash                   ( void ) = 0;
     virtual int                         SendTo                      ( SOCKET s, const char* buf, int len, int flags, const struct sockaddr* to, int tolen ) = 0;
 };

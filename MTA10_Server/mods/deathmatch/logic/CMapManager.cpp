@@ -827,7 +827,8 @@ void CMapManager::DoVehicleRespawning ( void )
     CVehicleSpawnPacket VehicleSpawnPacket;
 
     // Loop through all vehicles with respawn enabled
-    list < CVehicle* >& respawnEnabledList = m_pVehicleManager->GetRespawnEnabledVehicles ( );
+    // Use a copy of the list in case toggleVehicleRespawn is called during 'onVehicleRespawn'
+    const list < CVehicle* > respawnEnabledList = m_pVehicleManager->GetRespawnEnabledVehicles ( );
 
     list < CVehicle* > ::const_iterator iter = respawnEnabledList.begin ( );
     for ( ; iter != respawnEnabledList.end ( ); ++iter )
@@ -938,16 +939,16 @@ bool CMapManager::HandleNode ( CResource& Loader, CXMLNode& Node, CElement* pPar
     CElement* pNode = NULL;
     if ( elementType == CElement::VEHICLE )
     {
-        pNode = m_pVehicleManager->CreateFromXML ( pParent, Node, Loader.GetVirtualMachine (), m_pEvents );
+        pNode = m_pVehicleManager->CreateFromXML ( pParent, Node, m_pEvents );
     }
     else if ( elementType == CElement::OBJECT )
     {
         bool bIsLowLod = false;
-        pNode = m_pObjectManager->CreateFromXML ( pParent, Node, Loader.GetVirtualMachine (), m_pEvents, bIsLowLod );
+        pNode = m_pObjectManager->CreateFromXML ( pParent, Node, m_pEvents, bIsLowLod );
     }
     else if ( elementType == CElement::BLIP )
     {
-        CBlip* pBlip = m_pBlipManager->CreateFromXML ( pParent, Node, Loader.GetVirtualMachine (), m_pEvents );
+        CBlip* pBlip = m_pBlipManager->CreateFromXML ( pParent, Node, m_pEvents );
         pNode = pBlip;
         /*if ( pBlip )
         {
@@ -956,11 +957,11 @@ bool CMapManager::HandleNode ( CResource& Loader, CXMLNode& Node, CElement* pPar
     }
     else if ( elementType == CElement::PICKUP )
     {
-        pNode = m_pPickupManager->CreateFromXML ( pParent, Node, Loader.GetVirtualMachine (), m_pEvents );
+        pNode = m_pPickupManager->CreateFromXML ( pParent, Node, m_pEvents );
     }
     else if ( elementType == CElement::MARKER )
     {
-        CMarker* pMarker = m_pMarkerManager->CreateFromXML ( pParent, Node, Loader.GetVirtualMachine (), m_pEvents );
+        CMarker* pMarker = m_pMarkerManager->CreateFromXML ( pParent, Node, m_pEvents );
         pNode = pMarker;
         if ( pMarker )
         {
@@ -969,7 +970,7 @@ bool CMapManager::HandleNode ( CResource& Loader, CXMLNode& Node, CElement* pPar
     }
     else if ( elementType == CElement::RADAR_AREA )
     {
-        CRadarArea* pRadarArea = m_pRadarAreaManager->CreateFromXML ( pParent, Node, Loader.GetVirtualMachine (), m_pEvents );
+        CRadarArea* pRadarArea = m_pRadarAreaManager->CreateFromXML ( pParent, Node, m_pEvents );
         pNode = pRadarArea;
         if ( pRadarArea )
         {
@@ -978,15 +979,15 @@ bool CMapManager::HandleNode ( CResource& Loader, CXMLNode& Node, CElement* pPar
     }
     else if ( elementType == CElement::TEAM )
     {
-        pNode = m_pTeamManager->CreateFromXML ( pParent, Node, Loader.GetVirtualMachine (), m_pEvents );
+        pNode = m_pTeamManager->CreateFromXML ( pParent, Node, m_pEvents );
     }
     else if ( elementType == CElement::PED )
     {
-        pNode = m_pPedManager->CreateFromXML ( pParent, Node, Loader.GetVirtualMachine (), m_pEvents );
+        pNode = m_pPedManager->CreateFromXML ( pParent, Node, m_pEvents );
     }
     else if ( elementType == CElement::WATER )
     {
-        pNode = m_pWaterManager->CreateFromXML ( pParent, Node, Loader.GetVirtualMachine (), m_pEvents );
+        pNode = m_pWaterManager->CreateFromXML ( pParent, Node, m_pEvents );
     }
     else if ( strBuffer.empty () )
     {
@@ -995,7 +996,7 @@ bool CMapManager::HandleNode ( CResource& Loader, CXMLNode& Node, CElement* pPar
     }
     else
     {
-        pNode = m_pGroups->CreateFromXML ( pParent, Node, Loader.GetVirtualMachine (), m_pEvents );
+        pNode = m_pGroups->CreateFromXML ( pParent, Node, m_pEvents );
     }
 
     // Set the node we created in the pointer we were given

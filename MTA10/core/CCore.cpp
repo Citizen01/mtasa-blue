@@ -25,6 +25,7 @@
 #include <clocale>
 #include "CTimingCheckpoints.hpp"
 #include "CModelCacheManager.h"
+#include "detours/include/detours.h"
 
 using SharedUtil::CalcMTASAPath;
 using namespace std;
@@ -162,7 +163,6 @@ CCore::CCore ( void )
     m_pDirectInputHookManager   = new CDirectInputHookManager ( );
     m_pMessageLoopHook          = new CMessageLoopHook ( );
     m_pSetCursorPosHook         = new CSetCursorPosHook ( );
-    m_pTCPManager               = new CTCPManager ( );
 
     // Register internal commands.
     RegisterCommands ( );
@@ -220,7 +220,6 @@ CCore::~CCore ( void )
     //delete m_pFileSystemHook;
     delete m_pDirect3DHookManager;
     delete m_pDirectInputHookManager;
-    delete m_pTCPManager;
 
     // Delete the GUI manager    
     delete m_pLocalGUI;
@@ -631,19 +630,13 @@ void CCore::SetConnected ( bool bConnected )
 
 bool CCore::IsConnected ( void )
 {
-    return m_pLocalGUI->GetMainMenu ( )->GetIsIngame ();
+    return m_pLocalGUI->GetMainMenu() && m_pLocalGUI->GetMainMenu ( )->GetIsIngame ();
 }
 
 
-bool CCore::Reconnect ( const char* szHost, unsigned short usPort, const char* szPassword, bool bSave, bool bForceInternalHTTPServer )
+bool CCore::Reconnect ( const char* szHost, unsigned short usPort, const char* szPassword, bool bSave )
 {
-    return m_pConnectManager->Reconnect ( szHost, usPort, szPassword, bSave, bForceInternalHTTPServer );
-}
-
-
-bool CCore::ShouldUseInternalHTTPServer( void )
-{
-    return m_pConnectManager->ShouldUseInternalHTTPServer();
+    return m_pConnectManager->Reconnect ( szHost, usPort, szPassword, bSave );
 }
 
 
@@ -818,6 +811,28 @@ void CCore::ApplyHooks ( )
 
     // Redirect basic files.
     //m_pFileSystemHook->RedirectFile ( "main.scm", "../../mta/gtafiles/main.scm" );
+
+    // Remove useless DirectPlay dependency (dpnhpast.dll) @ 0x745701
+    // We have to patch here as multiplayer_sa and game_sa are loaded too late
+    using LoadLibraryA_t = HMODULE (__stdcall *)(LPCTSTR fileName);
+    static LoadLibraryA_t oldLoadLibraryA = (LoadLibraryA_t)DetourFunction ( DetourFindFunction ( "KERNEL32.DLL", "LoadLibraryA" ),
+        (PBYTE)(LoadLibraryA_t)[](LPCSTR fileName) -> HMODULE
+    {
+        // Don't load dpnhpast.dll
+        if ( StrCmpA ( "dpnhpast.dll", fileName ) == 0 )
+        {
+            // Unfortunately, Microsoft's detours library doesn't support something like 'detour chains' properly,
+            // so that we cannot remove the hook flawlessly
+            // See http://read.pudn.com/downloads71/ebook/256925/%E5%BE%AE%E8%BD%AF%E6%8F%90%E4%BE%9B%E7%9A%84%E6%88%AA%E5%8F%96Win32%20API%E5%87%BD%E6%95%B0%E7%9A%84%E5%BC%80%E5%8F%91%E5%8C%85%E5%92%8C%E4%BE%8B%E5%AD%90detours-src-1.2/src/detours.cpp__.htm
+
+            // Do something hacky: GTA requires a valid module handle, so pass a module handle of a DLL that is already loaded
+            // as FreeLibrary is later called
+            return oldLoadLibraryA ( "D3D8.DLL" );
+        }
+
+        // Call old LoadLibraryA (this in our case SharedUtil::MyLoadLibraryA though)
+        return oldLoadLibraryA ( fileName );
+    });
 }
 
 bool UsingAltD3DSetup()
@@ -1129,7 +1144,8 @@ void CCore::DestroyNetwork ( )
         m_pNet = NULL;
     }
 
-    m_NetModule.UnloadModule();
+    // Skip unload as it can cause exit crashes due to threading issues
+    //m_NetModule.UnloadModule();
 }
 
 
@@ -1956,9 +1972,6 @@ void CCore::OnPreHUDRender ( void )
 {
     IDirect3DDevice9* pDevice = CGraphics::GetSingleton ().GetDevice ();
 
-    // Handle saving depth buffer
-    CGraphics::GetSingleton ().GetRenderItemManager ()->SaveReadableDepthBuffer();
-
     CGraphics::GetSingleton ().EnteringMTARenderZone();
 
     // Maybe capture screen and other stuff
@@ -1972,6 +1985,9 @@ void CCore::OnPreHUDRender ( void )
     }
     else
         m_pModManager->DoPulsePreHUDRender ( false, false );
+
+    // Handle saving depth buffer
+    CGraphics::GetSingleton ().GetRenderItemManager ()->SaveReadableDepthBuffer();
 
     // Restore in case script forgets
     CGraphics::GetSingleton ().GetRenderItemManager ()->RestoreDefaultRenderTarget ();

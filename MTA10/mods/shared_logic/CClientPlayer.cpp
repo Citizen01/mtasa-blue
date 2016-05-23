@@ -277,8 +277,16 @@ void CClientPlayer::DischargeWeapon ( eWeaponType weaponType, const CVector& vec
             m_shotSyncData->m_vecRemoteBulletSyncEnd = vecEnd;
             m_shotSyncData->m_bRemoteBulletSyncVectorsValid = true;
 
-            // Fire
             g_iDamageEventLimit = 1;
+
+            // Fixed #9038: bugged shotgun with bullet sync
+            if ( weaponType == WEAPONTYPE_SHOTGUN || weaponType == WEAPONTYPE_SAWNOFF_SHOTGUN || weaponType == WEAPONTYPE_SPAS12_SHOTGUN )
+            {
+                if ( g_pClientGame->GetMiscGameSettings().bAllowShotgunDamageFix )
+                    g_iDamageEventLimit = 2;
+            }
+
+            // Fire
             CWeapon* pWeapon = m_pPlayerPed->GetWeapon ( m_pPlayerPed->GetCurrentWeaponSlot () );
             pWeapon->FireBullet ( m_pPlayerPed, vecStart, vecEnd );
             g_iDamageEventLimit = -1;
@@ -316,7 +324,7 @@ void CClientPlayer::DischargeWeapon ( eWeaponType weaponType, const CVector& vec
                 g_pClientGame->ApplyPedDamageFromGame( weaponType, fBackupDamage, ucBackupHitZone, pBackupDamagedPlayer, this, NULL );
 
                 SString strMessage( "Applied %0.2f damage to %s (from %s) due to network interruption", fBackupDamage, pBackupDamagedPlayer->GetNick(), GetNick() );
-                g_pClientGame->TellServerSomethingImportant( 1010, strMessage, false );
+                g_pClientGame->TellServerSomethingImportant( 1010, strMessage );
             }
         }
     }

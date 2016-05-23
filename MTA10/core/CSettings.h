@@ -128,6 +128,7 @@ public:
 
     void                UpdateVideoTab          ( void );
     void                PopulateResolutionComboBox( void );
+    void                UpdateFullScreenComboBoxEnabled( void );
 
     void                AddKeyBindSection       ( char * szSectionName );
     void                RemoveKeyBindSection    ( char * szSectionName );
@@ -232,7 +233,9 @@ protected:
     CGUIButton*         m_pButtonUpdate;
     CGUILabel*          m_pAdvancedMiscLabel;
     CGUILabel*          m_pAdvancedUpdaterLabel;
-
+    CGUILabel*          m_pCachePathLabel;
+    CGUILabel*          m_pCachePathValue;
+    CGUIButton*         m_pCachePathShowButton;
     CGUILabel*          m_pLabelRadioVolume;
     CGUILabel*          m_pLabelSFXVolume;
     CGUILabel*          m_pLabelMTAVolume;
@@ -323,6 +326,7 @@ protected:
     CGUICheckBox*       m_pChatCssText;
     CGUIEdit*           m_pChatLineLife;
     CGUIEdit*           m_pChatLineFadeout;
+    CGUICheckBox*       m_pFlashWindow;
 
     CGUILabel*          m_pLabelBrowserGeneral;
     CGUICheckBox*       m_pCheckBoxRemoteBrowser;
@@ -365,6 +369,7 @@ protected:
     bool                OnChatBlueChanged       ( CGUIElement* pElement );
     bool                OnChatAlphaChanged      ( CGUIElement* pElement );
     bool                OnUpdateButtonClick     ( CGUIElement* pElement );
+    bool                OnCachePathShowButtonClick ( CGUIElement* pElement );
     bool                OnMouseSensitivityChanged ( CGUIElement* pElement );
     bool                OnVerticalAimSensitivityChanged ( CGUIElement* pElement );
     bool                OnBrowserBlacklistAdd   ( CGUIElement* pElement );
@@ -384,6 +389,7 @@ protected:
     bool                OnAllowScreenUploadClick ( CGUIElement* pElement );
     bool                OnCustomizedSAFilesClick ( CGUIElement* pElement );
     bool                ShowUnsafeResolutionsClick ( CGUIElement* pElement );
+    bool                OnWindowedClick         ( CGUIElement* pElement );
     bool                OnShowAdvancedSettingDescription ( CGUIElement* pElement );
     bool                OnHideAdvancedSettingDescription ( CGUIElement* pElement );
 

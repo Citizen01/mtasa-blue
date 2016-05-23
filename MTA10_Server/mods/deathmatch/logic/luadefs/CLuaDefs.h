@@ -11,9 +11,7 @@
 *
 *****************************************************************************/
 
-#ifndef __CLUADEFS_H
-#define __CLUADEFS_H
-
+#pragma once
 #include "../CAccessControlListManager.h"
 #include "../CAccountManager.h"
 #include "../CBlipManager.h"
@@ -54,7 +52,8 @@
 #define SCRIPT_VERIFY_ACCOUNT(account) (m_pAccountManager->Exists(account))
 #define SCRIPT_VERIFY_COLSHAPE(colshape) (m_pColManager->Exists(colshape))
 #define SCRIPT_VERIFY_RESOURCE(resource) (m_pResourceManager->Exists(resource))
-
+#define LUA_DECLARE(x) static int x ( lua_State * luaVM ); 
+#define LUA_DECLARE_OOP(x) LUA_DECLARE(x) LUA_DECLARE(OOP_##x)
 
 class CLuaDefs
 {
@@ -65,7 +64,7 @@ public:
     static int          CanUseFunction      ( lua_CFunction f, lua_State* luaVM );
     static void         DidUseFunction      ( lua_CFunction f, lua_State* luaVM );
 
-// This is just for the LUA funcs. Please don't public this and use it other
+// This is just for the Lua funcs. Please don't public this and use it other
 // places in the server.
 protected:
     static CElementDeleter*             m_pElementDeleter;
@@ -88,5 +87,3 @@ protected:
     static CAccessControlListManager*   m_pACLManager;
     static CMainConfig*                 m_pMainConfig;
 };
-
-#endif

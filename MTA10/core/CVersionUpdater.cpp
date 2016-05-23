@@ -74,8 +74,8 @@ public:
     CNetHTTPDownloadManagerInterface* GetHTTP               ( void );
     void                GetSaveLocationList                 ( std::list < SString >& outSaveLocationList, const SString& strFilename );
     SString             GetResumableSaveLocation            ( const SString& strFilename, const SString& strMD5, uint iFilesize );
-    static bool         StaticDownloadFinished              ( double dDownloadNow, double dDownloadTotal, char* pCompletedData, size_t completedLength, void *pObj, bool bSuccess, int iErrorCode );
-    bool                DownloadFinished                    ( char* pCompletedData, size_t completedLength, bool bSuccess, int iErrorCode );
+    static void         StaticDownloadFinished              ( char* pCompletedData, size_t completedLength, void *pObj, bool bSuccess, int iErrorCode );
+    void                DownloadFinished                    ( char* pCompletedData, size_t completedLength, bool bSuccess, int iErrorCode );
 
     // Commands
     void                _UseMasterFetchURLs                 ( void );
@@ -686,7 +686,7 @@ void CVersionUpdater::GetAseServerList ( std::vector < SString >& outResult )
 
     // Backup plan if list is empty
     if ( outResult.empty () )
-        outResult.push_back ( "http://1mgg.com/affil/mta" );
+        outResult.push_back ( SERVER_LIST_MASTER_URL );
 }
 
 
@@ -1760,8 +1760,13 @@ void CVersionUpdater::_PollAnyButton ( void )
     while( true )
     {
         UpdaterYield();
+
+        // Abort if external force has closed the question box
+        if ( !GetQuestionBox ().IsVisible () )
+            _QuitCurrentProgram();
+
         // Wait for button press before continuing
-        if ( GetQuestionBox ().PollButtons () != -1 )
+        if ( GetQuestionBox ().PollButtons () != BUTTON_NONE )
         {
             GetQuestionBox ().Reset ();
             return;
@@ -1782,6 +1787,11 @@ void CVersionUpdater::_PollQuestionNoYes ( void )
     while( true )
     {
         UpdaterYield();
+
+        // Abort if external force has closed the question box
+        if ( !GetQuestionBox ().IsVisible () )
+            _QuitCurrentProgram();
+
         switch ( GetQuestionBox ().PollButtons () )
         {
             case BUTTON_NONE:
@@ -1982,7 +1992,7 @@ void CVersionUpdater::_DialogUpdateResult(void)
             GetQuestionBox ().Reset ();
             GetQuestionBox ().SetTitle ( _("ERROR DOWNLOADING") );
             GetQuestionBox ().SetMessage ( _("The downloaded file appears to be incorrect.") );
-            GetQuestionBox ().SetButton ( 0, _("OK") );
+            GetQuestionBox ().SetOnLineHelpOption ( SString( "dl-incorrect&fname=%s", *m_JobInfo.strFilename )  );
             GetQuestionBox ().Show ();
             _PollAnyButton();
         }
@@ -2591,7 +2601,7 @@ void CVersionUpdater::_ProcessPatchFileDownload ( void )
             if ( m_JobInfo.serverList.size () )
                 ListRemoveIndex( m_JobInfo.serverList, m_JobInfo.iCurrent-- );
             m_ConditionMap.SetCondition ( "Download", "Fail", "Checksum" );
-            AddReportLog ( 5003, SString ( "DoPollDownload: Checksum wrong for %s (%s %s)", m_JobInfo.strFilename.c_str(), m_JobInfo.strMD5.c_str(), szMD5 ) );
+            AddReportLog ( 5003, SString ( "DoPollDownload: Checksum wrong for %s (Want:%d-%s Got:%d-%s)", m_JobInfo.strFilename.c_str(), (int)m_JobInfo.iFilesize, m_JobInfo.strMD5.c_str(), uiSize, szMD5 ) );
             return;
         }
     }
@@ -2771,7 +2781,7 @@ int CVersionUpdater::_PollDownload ( void )
                 if ( GetQuestionBox ().IsVisible () )
                 {
                     // Handle progress/cancel if visible
-                    if ( GetQuestionBox ().PollButtons () == 0 )
+                    if ( GetQuestionBox ().PollButtons () == BUTTON_0 )
                     {
                         GetHTTP()->Reset();
                         GetQuestionBox ().Reset ();
@@ -3217,9 +3227,11 @@ int CVersionUpdater::DoSendDownloadRequestToNextServer ( void )
     SString strSystemStats3 ( "3_%d"
                              "_%s"
                              "_%s"
+                             "_%d"
                              , GetApplicationSettingInt( "vs2013-runtime-installed" )
                              , *GetApplicationSetting ( "real-os-build" )
                              , *GetApplicationSetting ( "locale" ).Replace( "_", "-" )
+                             , (uint)FileSize( PathJoin( GetSystemSystemPath(), "normaliz.dll" ) )
                            );
 
     SString strConnectUsage = SString("%i_%i", GetApplicationSettingInt ( "times-connected-editor" ), GetApplicationSettingInt ( "times-connected" ) );
@@ -3275,12 +3287,12 @@ int CVersionUpdater::DoSendDownloadRequestToNextServer ( void )
 // Handle when download finishes
 //
 ///////////////////////////////////////////////////////////////
-bool CVersionUpdater::StaticDownloadFinished ( double dDownloadNow, double dDownloadTotal, char* pCompletedData, size_t completedLength, void *pObj, bool bSuccess, int iErrorCode )
+void CVersionUpdater::StaticDownloadFinished ( char* pCompletedData, size_t completedLength, void *pObj, bool bSuccess, int iErrorCode )
 {
-    return ((CVersionUpdater*)pObj)->DownloadFinished( pCompletedData, completedLength, bSuccess, iErrorCode );
+    ((CVersionUpdater*)pObj)->DownloadFinished( pCompletedData, completedLength, bSuccess, iErrorCode );
 }
 
-bool CVersionUpdater::DownloadFinished( char* pCompletedData, size_t completedLength, bool bSuccess, int iErrorCode )
+void CVersionUpdater::DownloadFinished( char* pCompletedData, size_t completedLength, bool bSuccess, int iErrorCode )
 {
     if ( bSuccess )
     {
@@ -3296,7 +3308,6 @@ bool CVersionUpdater::DownloadFinished( char* pCompletedData, size_t completedLe
         m_JobInfo.downloadStatus = EDownloadStatus::Failure;
         m_JobInfo.iDownloadResultCode = iErrorCode;
     }
-    return true;
 }
 
 

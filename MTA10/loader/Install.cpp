@@ -14,48 +14,20 @@
 #include "../../vendor/unrar/dll.hpp"
 
 
-bool TerminateProcessFromPathFilename ( const SString& strPathFilename )
+// Will not terminate a 64 bit process, or the current process
+bool TerminateProcessFromPathFilename ( const SString& strPathFilename, bool bTestOnly = false )
 {
-    DWORD dwProcessIDs[250];
-    DWORD pBytesReturned = 0;
-    if ( EnumProcesses ( dwProcessIDs, 250 * sizeof(DWORD), &pBytesReturned ) )
+    for ( auto processId : MyEnumProcesses() )
     {
-        DWORD id1 = GetCurrentProcessId();
-        for ( unsigned int i = 0; i < pBytesReturned / sizeof ( DWORD ); i++ )
+        if ( GetProcessPathFilename( processId ).EqualsI( strPathFilename ) )
         {
-            DWORD id2 = dwProcessIDs[i];
-            if ( id2 == id1 )
-                continue;
-            // Skip 64 bit processes to avoid errors
-            if ( !Is32bitProcess ( dwProcessIDs[i] ) )
-                continue;
-            // Open the process
-            HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, 0, dwProcessIDs[i]);
-            if ( hProcess )
+            if ( !bTestOnly )
             {
-                HMODULE pModule;
-                DWORD cbNeeded;
-                if ( EnumProcessModules ( hProcess, &pModule, sizeof ( HMODULE ), &cbNeeded ) )
-                {
-                    WCHAR szModuleName[MAX_PATH*2] = L"";
-                    if ( GetModuleFileNameExW( hProcess, pModule, szModuleName, NUMELMS(szModuleName) ) )
-                    {
-                        SString strModuleName = ToUTF8( szModuleName );
-                        if ( stricmp ( strModuleName, strPathFilename ) == 0 )
-                        {
-                            TerminateProcess ( hProcess, 0 );
-                            CloseHandle ( hProcess );
-                            return true;
-                        } 
-                    }
-                }
-
-                // Close the process
-                CloseHandle ( hProcess );
+                TerminateProcess( processId );
             }
+            return true;
         }
     }
-
     return false;
 }
 
@@ -115,7 +87,20 @@ bool DoInstallFiles ( void )
     {
         SString strFile = itemList[i].strDestPathFilename;
         if ( strFile.EndsWithI( ".exe" ) )
+        {
+            if ( ExtractFilename( strFile ).BeginsWithI( "MTA Server" ) )
+            {
+                if ( TerminateProcessFromPathFilename( strFile, true ) )
+                {
+                    int iResponse = MessageBoxUTF8( NULL, _("Do you want to terminate the MTA Server and continue updating?"), "MTA: San Andreas", MB_YESNO | MB_ICONQUESTION | MB_TOPMOST );
+                    if ( iResponse != IDYES )
+                    {
+                        return false;
+                    }
+                }
+            }
             TerminateProcessFromPathFilename ( strFile );
+        }
     }
 
     // Copy current(old) files into backup location

@@ -95,7 +95,7 @@ CElement::~CElement ( void )
         (*iter)->m_ElementReferences.remove ( this );
     }
 
-    RemoveAllCollisions ( true );
+    RemoveAllCollisions ();
 
     // Null all camera elements referencing us
     std::list < CPlayerCamera* > cloneFollowingCameras = m_FollowingCameras;
@@ -452,7 +452,8 @@ bool CElement::AddEvent ( CLuaMain* pLuaMain, const char* szName, const CLuaFunc
 
 bool CElement::CallEvent ( const char* szName, const CLuaArguments& Arguments, CPlayer* pCaller )
 {
-    g_pGame->GetDebugHookManager()->OnPreEvent( szName, Arguments, this, pCaller );
+    if ( !g_pGame->GetDebugHookManager()->OnPreEvent( szName, Arguments, this, pCaller ) )
+        return false;
 
     CEvents* pEvents = g_pGame->GetEvents();
 
@@ -504,9 +505,8 @@ void CElement::DeleteAllEvents ( void )
 }
 
 
-void CElement::ReadCustomData ( CLuaMain* pLuaMain, CEvents* pEvents )
+void CElement::ReadCustomData ( CEvents* pEvents )
 {
-    assert ( pLuaMain );
     assert ( pEvents );
 
     // Got an XML node?
@@ -526,7 +526,7 @@ void CElement::ReadCustomData ( CLuaMain* pLuaMain, CEvents* pEvents )
                 args.PushString ( pAttribute->GetValue ().c_str () );
 
             // Don't trigger onElementDataChanged event
-            SetCustomData ( pAttribute->GetName ().c_str (), *args[0], pLuaMain, g_pGame->GetConfig ()->GetSyncMapElementData (), NULL, false );
+            SetCustomData ( pAttribute->GetName ().c_str (), *args[0], g_pGame->GetConfig ()->GetSyncMapElementData (), NULL, false );
         }
     }
 }
@@ -734,7 +734,7 @@ bool CElement::GetCustomDataBool ( const char* szName, bool& bOut, bool bInherit
 }
 
 
-void CElement::SetCustomData ( const char* szName, const CLuaArgument& Variable, CLuaMain* pLuaMain, bool bSynchronized, CPlayer* pClient, bool bTriggerEvent )
+void CElement::SetCustomData ( const char* szName, const CLuaArgument& Variable, bool bSynchronized, CPlayer* pClient, bool bTriggerEvent )
 {
     assert ( szName );
     if ( strlen ( szName ) > MAX_CUSTOMDATA_NAME_LENGTH )
@@ -753,7 +753,7 @@ void CElement::SetCustomData ( const char* szName, const CLuaArgument& Variable,
     }
 
     // Set the new data
-    m_pCustomData->Set ( szName, Variable, pLuaMain, bSynchronized );
+    m_pCustomData->Set ( szName, Variable, bSynchronized );
 
     if ( bTriggerEvent )
     {
@@ -846,13 +846,12 @@ void CElement::CleanUpForVM ( CLuaMain* pLuaMain, bool bRecursive )
 }
 
 
-bool CElement::LoadFromCustomData ( CLuaMain* pLuaMain, CEvents* pEvents )
+bool CElement::LoadFromCustomData ( CEvents* pEvents )
 {
-    assert ( pLuaMain );
     assert ( pEvents );
 
     // Read out all the attributes into our custom data records
-    ReadCustomData ( pLuaMain, pEvents );
+    ReadCustomData ( pEvents );
 
     // Grab the "id" custom data into our m_strName member
     char szBuf[MAX_ELEMENT_NAME_LENGTH + 1] = {0};
@@ -1099,15 +1098,12 @@ bool CElement::CollisionExists ( CColShape* pShape )
 }
 
 
-void CElement::RemoveAllCollisions ( bool bNotify )
+void CElement::RemoveAllCollisions ( void )
 {
-    if ( bNotify )
+    list < CColShape* > ::iterator iter = m_Collisions.begin ();
+    for ( ; iter != m_Collisions.end () ; iter++ )
     {
-        list < CColShape* > ::iterator iter = m_Collisions.begin ();
-        for ( ; iter != m_Collisions.end () ; iter++ )
-        {
-            (*iter)->RemoveCollider ( this );
-        }
+        (*iter)->RemoveCollider ( this );
     }
     m_Collisions.clear ();
 }

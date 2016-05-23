@@ -545,6 +545,7 @@ CMultiplayerSA::CMultiplayerSA()
 
     m_bHeatHazeEnabled = true;
     m_bHeatHazeCustomized = false;
+    m_fMaddDoggPoolLevel = 1082.73f;
 }
 
 void CMultiplayerSA::InitHooks()
@@ -721,10 +722,6 @@ void CMultiplayerSA::InitHooks()
 
     // Disable GTA setting g_bGotFocus to false when we minimize
     MemSet ( (void *)ADDR_GotFocus, 0x90, pGameInterface->GetGameVersion () == VERSION_EU_10 ? 6 : 10 );
-
-    // Increase double link limit from 3200 ro 8000
-    MemPut < int > ( 0x00550F82, 8000 );
-
 
     // Disable GTA being able to call CAudio::StopRadio ()
     // Well this isn't really CAudio::StopRadio, it's some global class
@@ -1125,16 +1122,6 @@ void CMultiplayerSA::InitHooks()
     // DISABLE weapon pickups
     MemPut < BYTE > ( 0x5B47B0, 0xC3 );
 
-    // INCREASE CEntyInfoNode pool size
-    //00550FB9   68 F4010000      PUSH 1F4
-    /*
-    MemPut < BYTE > ( 0x550FBA, 0xE8 );
-    MemPut < BYTE > ( 0x550FBB, 0x03 );
-    */
-    MemPut < BYTE > ( 0x550FBA, 0x00 );
-    MemPut < BYTE > ( 0x550FBB, 0x10 );
-
-    
     /*
     MemPut < BYTE > ( 0x469F00, 0xC3 );
     */
@@ -1412,9 +1399,6 @@ void CMultiplayerSA::InitHooks()
     // Disable CStreaming::StreamVehiclesAndPeds_Always
     MemPut < BYTE > ( 0x40B650, 0xC3 );
 
-    // Double the size of CPlaceable matrix array to fix a crash after CMatrixLinkList::AddToList1
-    MemPut < int > ( 0x54F3A1, 1800 );
-
     SetSuspensionEnabled ( true );
 
     // Aircraft Max Height checks are at 0x6D2614 and 0x6D2625 edit the check to use our own float.
@@ -1440,6 +1424,22 @@ void CMultiplayerSA::InitHooks()
 
     // Increase intensity of vehicle tail light corona
     MemPut < BYTE > ( 0x6E1A22, 0xF0 );
+
+    // Do not change visibility flag for water areas above level 950 (fix for #9159)
+    // do it only for Madd Dogg's mansion pool instead
+    MemPut ( 0x6E5869, &m_fMaddDoggPoolLevel );
+    MemPut ( 0x6E58BD, &m_fMaddDoggPoolLevel );
+    MemPut ( 0x6E594B, &m_fMaddDoggPoolLevel );
+    MemPut ( 0x6E5995, &m_fMaddDoggPoolLevel );
+
+    MemCpy ( (void*) 0x6E5871, "\x40\x74", 2 );
+    MemCpy ( (void*) 0x6E58C5, "\x40\x74", 2 );
+    MemCpy ( (void*) 0x6E5951, "\x40\x74", 2 );
+    MemCpy ( (void*) 0x6E599D, "\x40\x74", 2 );
+
+    // Skip vehicle type check in CVehicle::SetupRender & CVehicle::ResetAfterRender (fix for #8158)
+    MemSet ( (void*) 0x6D6517, 0x90, 2 );
+    MemSet ( (void*) 0x6D0E43, 0x90, 2 );
 
 
     InitHooks_CrashFixHacks ();

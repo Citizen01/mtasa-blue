@@ -35,6 +35,15 @@
 CCriticalSection CRefCountable::ms_CS;
 std::map < uint, uint > ms_ReportAmountMap;
 
+struct SReportLine
+{
+    SString strText;
+    uint    uiId;
+    operator SString&   ( void )                            { return strText; }
+    bool operator ==    ( const SReportLine& other ) const  { return strText == other.strText && uiId == other.uiId; }
+};
+CDuplicateLineFilter < SReportLine > ms_ReportLineFilter;
+
 #ifdef MTA_CLIENT
 
 #define TROUBLE_URL1 "http://updatesa.multitheftauto.com/sa/trouble/?v=_VERSION_&id=_ID_&tr=_TROUBLE_"
@@ -139,11 +148,11 @@ static SString ReadRegistryStringValue ( HKEY hkRoot, const char* szSubKey, cons
         DWORD dwBufferSize;
         if ( RegQueryValueExW ( hkTemp, wstrValue, NULL, NULL, NULL, &dwBufferSize ) == ERROR_SUCCESS )
         {
-            wchar_t* szBuffer = static_cast < wchar_t* > ( alloca ( dwBufferSize + sizeof( wchar_t ) ) );
-            if ( RegQueryValueExW ( hkTemp, wstrValue, NULL, NULL, (LPBYTE)szBuffer, &dwBufferSize ) == ERROR_SUCCESS )
+            CScopeAlloc < wchar_t > szBuffer( dwBufferSize + sizeof( wchar_t ) );
+            if ( RegQueryValueExW ( hkTemp, wstrValue, NULL, NULL, (LPBYTE)(wchar_t*)szBuffer, &dwBufferSize ) == ERROR_SUCCESS )
             {
                 szBuffer[ dwBufferSize / sizeof( wchar_t ) ] = 0;
-                strOutResult = ToUTF8( szBuffer );
+                strOutResult = ToUTF8( (wchar_t*)szBuffer );
                 bResult = true;
             }
         }
@@ -329,7 +338,7 @@ void SharedUtil::SetPostUpdateConnect( const SString& strHost )
 {
     CArgMap argMap;
     argMap.Set( "host", strHost );
-    argMap.Set( "time", SString( PRId64, (int64)time( NULL ) ) );
+    argMap.Set( "time", SString( "%" PRId64, (int64)time( NULL ) ) );
     SetRegistryValue( "", "PostUpdateConnect", argMap.ToString() );
 }
 
@@ -345,11 +354,11 @@ SString SharedUtil::GetPostUpdateConnect( void )
     CArgMap argMap;
     argMap.SetFromString( strPostUpdateConnect );
     SString strHost = argMap.Get( "host" );
-    time_t timeThen = (time_t)atoi64( argMap.Get( "time" ) );
+    time_t timeThen = (time_t)std::atoll( argMap.Get( "time" ) );
 
     // Expire after 5 mins
     double seconds = difftime( time( NULL ), timeThen );
-    if ( seconds < 0 || seconds > 60 * 5 )
+    if ( ( seconds < 0 || seconds > 60 * 5 ) && timeThen != 0 )
         strHost = "";
 
     return strHost;
@@ -523,6 +532,14 @@ void SharedUtil::WatchDogSetLastRunCrash( bool bOn )
     bWatchDogWasLastRunCrashValue = bOn;
 }
 
+//
+// Special things
+//
+void SharedUtil::WatchDogUserDidInteractWithMenu( void )
+{
+    WatchDogCompletedSection( WD_SECTION_NOT_USED_MAIN_MENU );
+    WatchDogCompletedSection( WD_SECTION_POST_INSTALL );
+}
 
 
 void SharedUtil::SetClipboardText ( const SString& strText )
@@ -680,12 +697,21 @@ void SharedUtil::AddReportLog ( uint uiId, const SString& strText, uint uiAmount
             return;
     }
 
-    SString strPathFilename = PathJoin ( GetMTADataPath (), "report.log" );
-    MakeSureDirExists ( strPathFilename );
+    ms_ReportLineFilter.AddLine( { strText, uiId } );
 
-    SString strMessage ( "%u: %s %s [%s] - %s\n", uiId, GetTimeString ( true, false ).c_str (), GetReportLogHeaderText ().c_str (), GetReportLogProcessTag().c_str (), strText.c_str () );
-    FileAppend ( strPathFilename, &strMessage.at ( 0 ), strMessage.length () );
-    OutputDebugLine ( SStringX ( "[ReportLog] " ) + strMessage );
+    SReportLine line;
+    while ( ms_ReportLineFilter.PopOutputLine( line ) )
+    {
+        const SString& strText = line.strText;
+        uint uiId = line.uiId;
+    
+        SString strPathFilename = PathJoin ( GetMTADataPath (), "report.log" );
+        MakeSureDirExists ( strPathFilename );
+    
+        SString strMessage ( "%u: %s %s [%s] - %s\n", uiId, GetTimeString ( true, false ).c_str (), GetReportLogHeaderText ().c_str (), GetReportLogProcessTag().c_str (), strText.c_str () );
+        FileAppend ( strPathFilename, &strMessage.at ( 0 ), strMessage.length () );
+        OutputDebugLine ( SStringX ( "[ReportLog] " ) + strMessage );
+    }
 }
 
 void SharedUtil::SetReportLogContents ( const SString& strText )
@@ -919,6 +945,7 @@ bool SharedUtil::ShellExecuteNonBlocking ( const SString& strAction, const SStri
 #endif  // MTA_CLIENT
 
 #ifdef WIN32
+#define _WIN32_WINNT_WIN8                   0x0602
 ///////////////////////////////////////////////////////////////////////////
 //
 // SharedUtil::IsWindowsVersionOrGreater
@@ -948,6 +975,21 @@ bool SharedUtil::IsWindowsVersionOrGreater(WORD wMajorVersion, WORD wMinorVersio
 bool SharedUtil::IsWindowsXPSP3OrGreater()
 {
     return IsWindowsVersionOrGreater(HIBYTE(_WIN32_WINNT_WINXP), LOBYTE(_WIN32_WINNT_WINXP), 3);
+}
+
+bool SharedUtil::IsWindowsVistaOrGreater()
+{
+    return IsWindowsVersionOrGreater(HIBYTE(_WIN32_WINNT_VISTA), LOBYTE(_WIN32_WINNT_VISTA), 0);
+}
+
+bool SharedUtil::IsWindows7OrGreater()
+{
+    return IsWindowsVersionOrGreater(HIBYTE(_WIN32_WINNT_WIN7), LOBYTE(_WIN32_WINNT_WIN7), 0);
+}
+
+bool SharedUtil::IsWindows8OrGreater()
+{
+    return IsWindowsVersionOrGreater(HIBYTE(_WIN32_WINNT_WIN8), LOBYTE(_WIN32_WINNT_WIN8), 0);
 }
 #endif  // WIN32
 
@@ -1321,8 +1363,8 @@ bool SharedUtil::IsLuaCompiledScript( const void* pData, uint uiLength )
     return ( uiLength > 0 && pCharData[0] == 0x1B );    // Do the same check as what the Lua parser does
 }
 
-// Check for encypted script
-bool SharedUtil::IsLuaEncryptedScript( const void* pData, uint uiLength )
+// Check for obfuscated script
+bool SharedUtil::IsLuaObfuscatedScript( const void* pData, uint uiLength )
 {
     const uchar* pCharData = (const uchar*)pData;
     return ( uiLength > 0 && pCharData[0] == 0x1C );    // Look for our special marker
@@ -1351,17 +1393,6 @@ bool SharedUtil::IsValidVersionString ( const SString& strVersion )
 SString SharedUtil::ExtractVersionStringBuildNumber( const SString& strVersion )
 {
     return strVersion.SubStr( 8, 5 );
-}
-
-
-// Replace major/minor/type to match current configuration
-SString SharedUtil::ConformVersionStringToBaseVersion( const SString& strVersion, const SString& strBaseVersion )
-{
-    SString strResult = strVersion;
-    strResult[0] = strBaseVersion[0];  // Major
-    strResult[2] = strBaseVersion[2];  // Minor
-    strResult[6] = strBaseVersion[6];  // Type
-    return strResult;
 }
 
 

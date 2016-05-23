@@ -32,7 +32,6 @@ CResource::CResource ( unsigned short usNetID, const char* szResourceName, CClie
     m_bActive = false;
     m_bStarting = true;
     m_bStopping = false;
-    m_bInDownloadQueue = false;
     m_bShowingCursor = false;
     m_usRemainingNoClientCacheScripts = 0;
     m_bLoadAfterReceivingNoClientCacheScripts = false;
@@ -78,7 +77,6 @@ CResource::CResource ( unsigned short usNetID, const char* szResourceName, CClie
     // Move this after the CreateVirtualMachine line and heads will roll
     m_bOOPEnabled = bEnableOOP;
     m_iDownloadPriorityGroup = 0;
-    m_bIsDownloading = false;
 
     m_pLuaVM = m_pLuaManager->CreateVirtualMachine ( this, bEnableOOP );
     if ( m_pLuaVM )
@@ -157,7 +155,7 @@ CResource::~CResource ( void )
     m_exportedFunctions.clear();
 }
 
-CDownloadableResource* CResource::QueueFile ( CDownloadableResource::eResourceType resourceType, const char *szFileName, CChecksum serverChecksum, bool bAutoDownload )
+CDownloadableResource* CResource::AddResourceFile ( CDownloadableResource::eResourceType resourceType, const char *szFileName, uint uiDownloadSize, CChecksum serverChecksum, bool bAutoDownload )
 {
     // Create the resource file and add it to the list
     SString strBuffer ( "%s\\resources\\%s\\%s", g_pClientGame->GetFileCacheRoot (), *m_strResourceName, szFileName );
@@ -169,7 +167,7 @@ CDownloadableResource* CResource::QueueFile ( CDownloadableResource::eResourceTy
         return NULL;
     }
 
-    CResourceFile* pResourceFile = new CResourceFile ( resourceType, szFileName, strBuffer, serverChecksum, bAutoDownload );
+    CResourceFile* pResourceFile = new CResourceFile ( this, resourceType, szFileName, strBuffer, uiDownloadSize, serverChecksum, bAutoDownload );
     if ( pResourceFile )
     {
         m_ResourceFiles.push_back ( pResourceFile );
@@ -179,7 +177,7 @@ CDownloadableResource* CResource::QueueFile ( CDownloadableResource::eResourceTy
 }
 
 
-CDownloadableResource* CResource::AddConfigFile ( const char *szFileName, CChecksum serverChecksum )
+CDownloadableResource* CResource::AddConfigFile ( const char *szFileName, uint uiDownloadSize, CChecksum serverChecksum )
 {
     // Create the config file and add it to the list
     SString strBuffer ( "%s\\resources\\%s\\%s", g_pClientGame->GetFileCacheRoot (), *m_strResourceName, szFileName );
@@ -191,7 +189,7 @@ CDownloadableResource* CResource::AddConfigFile ( const char *szFileName, CCheck
         return NULL;
     }
 
-    CResourceConfigItem* pConfig = new CResourceConfigItem ( this, szFileName, strBuffer, serverChecksum );
+    CResourceConfigItem* pConfig = new CResourceConfigItem ( this, szFileName, strBuffer, uiDownloadSize, serverChecksum );
     if ( pConfig )
     {
         m_ConfigFiles.push_back ( pConfig );
@@ -221,106 +219,22 @@ bool CResource::CallExportedFunction ( const char * szFunctionName, CLuaArgument
     return false;
 }
 
-
-//
-// Quick integrity check of png, dff and txd files
-//
-static bool CheckFileForCorruption( const SString &strPath, SString &strAppendix )
-{
-    const char* szExt   = strPath.c_str () + max<long>( 0, strPath.length () - 4 );
-    bool bIsBad         = false;
-
-    if ( stricmp ( szExt, ".PNG" ) == 0 )
-    {
-        // Open the file
-        if ( FILE* pFile = fopen ( strPath.c_str (), "rb" ) )
-        {
-            // This is what the png header should look like
-            unsigned char pGoodHeader [8] = { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
-
-             // Load the header
-            unsigned char pBuffer [8] = { 0,0,0,0,0,0,0,0 };
-            fread ( pBuffer, 1, 8, pFile );
-
-            // Check header integrity
-            if ( memcmp ( pBuffer, pGoodHeader, 8 ) )
-                bIsBad = true;
-
-            // Close the file
-            fclose ( pFile );
-        }
-    }
-    else
-    if ( stricmp ( szExt, ".TXD" ) == 0 || stricmp ( szExt, ".DFF" ) == 0 )
-    {
-        // Open the file
-        if ( FILE* pFile = fopen ( strPath.c_str (), "rb" ) )
-        {
-            struct {
-                long id;
-                long size;
-                long ver;
-            } header = {0,0,0};
-
-            // Load the first header
-            fread ( &header, 1, sizeof(header), pFile );
-            long pos = sizeof(header);
-            long validSize = header.size + pos;
-
-            // Step through the sections
-            while ( pos < validSize )
-            {
-                if ( fread ( &header, 1, sizeof(header), pFile ) != sizeof(header) )
-                    break;
-                fseek ( pFile, header.size, SEEK_CUR );
-                pos += header.size + sizeof(header);
-            }
-
-            // Check integrity
-            if ( pos != validSize )
-                bIsBad = true;
-               
-            // Close the file
-            fclose ( pFile );
-        }
-    }
-
-    return bIsBad;
-}
-
-
-void CResource::AddPendingFileDownload( const SString& strUrl, const SString& strFilename, double dDownloadSize )
-{
-    SPendingFileDownload item;
-    item.strUrl = strUrl;
-    item.strFilename = strFilename;
-    item.dDownloadSize = dDownloadSize;
-    m_PendingFileDownloadList.push_back( item );
-}
-
-
-void CResource::StartPendingFileDownloads( void )
-{
-    for( uint i = 0 ; i < m_PendingFileDownloadList.size() ; ++i )
-    {
-        const SPendingFileDownload& item = m_PendingFileDownloadList[i];
-    
-        // Queue the file to be downloaded
-        CNetHTTPDownloadManagerInterface* pHTTP = g_pCore->GetNetwork()->GetHTTPDownloadManager( EDownloadMode::RESOURCE_INITIAL_FILES );
-        bool bAddedFile = pHTTP->QueueFile( item.strUrl, item.strFilename, item.dDownloadSize, NULL, 0, false, NULL, NULL, g_pClientGame->IsLocalGame(), 10, 10000, true );
-    
-        // If the file was successfully queued, increment the resources to be downloaded (The file won't be added if it's already in the queue)
-        if ( bAddedFile )
-            g_pClientGame->GetTransferBox()->AddToTotalSize( item.dDownloadSize );
-        m_bIsDownloading = true;
-    }
-    m_PendingFileDownloadList.clear();
-}
-
-
 bool CResource::CanBeLoaded( void )
 {
-    return !IsActive() && !HasPendingFileDownloads() && !IsDownloading();
+    return !IsActive() && !IsWaitingForInitialDownloads();
+}
+
+bool CResource::IsWaitingForInitialDownloads( void )
+{
+    for ( std::list < CResourceConfigItem* >::iterator iter = m_ConfigFiles.begin ( ); iter != m_ConfigFiles.end () ; ++iter )
+        if ( (*iter)->IsWaitingForDownload() )
+            return true;
+
+    for ( std::list < CResourceFile* >::iterator iter = m_ResourceFiles.begin ( ); iter != m_ResourceFiles.end () ; ++iter )
+        if ( (*iter)->IsAutoDownload() )
+            if ( (*iter)->IsWaitingForDownload() )
+                return true;
+    return false;
 }
 
 
@@ -385,13 +299,13 @@ void CResource::Load ( void )
             // Load the file
             std::vector < char > buffer;
             FileLoad ( pResourceFile->GetName (), buffer );
-            unsigned int iSize = buffer.size();
+            const char* pBufferData = buffer.empty() ? nullptr : &buffer.at( 0 );
 
             DECLARE_PROFILER_SECTION( OnPreLoadScript )
             // Check the contents
-            if ( iSize > 0 && CChecksum::GenerateChecksumFromBuffer ( &buffer.at ( 0 ), iSize ) == pResourceFile->GetServerChecksum () )
+            if ( CChecksum::GenerateChecksumFromBuffer ( pBufferData, buffer.size() ) == pResourceFile->GetServerChecksum () )
             {
-                m_pLuaVM->LoadScriptFromBuffer ( &buffer.at ( 0 ), iSize, pResourceFile->GetName () );
+                m_pLuaVM->LoadScriptFromBuffer ( pBufferData, buffer.size(), pResourceFile->GetName () );
             }
             else
             {
@@ -405,16 +319,10 @@ void CResource::Load ( void )
             // Check the file contents
             if ( CChecksum::GenerateChecksumFromFile ( pResourceFile->GetName () ) == pResourceFile->GetServerChecksum () )
             {
-                SString strError = "";
-                bool bIsBad = CheckFileForCorruption ( pResourceFile->GetName ( ), strError );
-                if ( bIsBad )
-                {
-                    HandleDownloadedFileTrouble( pResourceFile, false, strError );
-                }
             }
             else
             {
-                HandleDownloadedFileTrouble( pResourceFile, true, "" );
+                HandleDownloadedFileTrouble( pResourceFile, false );
             }
         }
     }
@@ -564,39 +472,16 @@ void CResource::AddToElementGroup ( CClientEntity* pElement )
 //
 // Handle when things go wrong 
 //
-void CResource::HandleDownloadedFileTrouble( CResourceFile* pResourceFile, bool bCRCMismatch, const SString &strAppendix )
+void CResource::HandleDownloadedFileTrouble( CResourceFile* pResourceFile, bool bScript )
 {
     // Compose message
-    SString strMessage;
-    if ( bCRCMismatch )
-    {
-        if ( g_pClientGame->IsUsingExternalHTTPServer() )
-            strMessage += "External ";
-        strMessage += "HTTP server file mismatch";
-    }
-    else
-        strMessage += "Invalid file";
+    uint uiGotFileSize = (uint)FileSize( pResourceFile->GetName() );
+    SString strGotMd5 = ConvertDataToHexString( CChecksum::GenerateChecksumFromFile( pResourceFile->GetName() ).md5.data, sizeof( MD5 ) );
+    SString strWantedMd5 = ConvertDataToHexString( pResourceFile->GetServerChecksum().md5.data, sizeof( MD5 ) );
     SString strFilename = ExtractFilename( PathConform( pResourceFile->GetShortName() ) );
-    strMessage += SString( " (%s) %s %s", GetName(), *strFilename, *strAppendix );
+    SString strMessage = SString( "HTTP server file mismatch (%s) %s [Got size:%d MD5:%s, wanted MD5:%s]", GetName(), *strFilename, uiGotFileSize, *strGotMd5, *strWantedMd5 );
 
-    if ( !bCRCMismatch )
-    {
-        // For corrupt files, log to the client console
-        g_pClientGame->TellServerSomethingImportant( 1000, strMessage, true );
-        g_pCore->GetConsole()->Printf( "Download error: %s", *strMessage );
-        return;
-    }
-
-    // If using external HTTP server, reconnect and use internal one
-    if ( g_pClientGame->IsUsingExternalHTTPServer() && !g_pCore->ShouldUseInternalHTTPServer() )
-    {
-        g_pClientGame->TellServerSomethingImportant( 1001, strMessage, true );
-        g_pCore->Reconnect( "", 0, NULL, false, true );
-    }
-    else
-    {
-        // Otherwise, log to the client console
-        g_pClientGame->TellServerSomethingImportant( 1002, strMessage, true );
-        g_pCore->GetConsole ()->Printf ( "Download error: %s", *strMessage );
-    }
+    // Log to the server & client console
+    g_pClientGame->TellServerSomethingImportant( bScript ? 1002 : 1013, strMessage, 4 );
+    g_pCore->GetConsole ()->Printf ( "Download error: %s", *strMessage );
 }

@@ -13,6 +13,8 @@ struct SMasterServerDefinition
     bool bAcceptsPush;
     bool bDoReminders;
     bool bHideProblems;
+    bool bHideSuccess;
+    uint uiReminderIntervalMins;
     SString strDesc;
     SString strURL;
 };
@@ -41,7 +43,6 @@ public:
         m_Stage = ANNOUNCE_STAGE_INITIAL;
         m_uiInitialAnnounceRetryAttempts = 5;
         m_uiInitialAnnounceRetryInterval = 1000 * 60 * 5;        // 5 mins initial announce retry interval
-        m_uiReminderAnnounceInterval     = 1000 * 60 * 60 * 24;  // 24 hrs reminder announce interval
         m_uiPushInterval                 = 1000 * 60 * 10;       // 10 mins push interval
     }
 
@@ -67,7 +68,7 @@ public:
                 bIsTimeForAnnounce = true;
             if ( m_Stage == ANNOUNCE_STAGE_INITIAL_RETRY && m_Definition.bDoReminders && llTickCountNow - m_llLastAnnounceTime > m_uiInitialAnnounceRetryInterval )
                 bIsTimeForAnnounce = true;
-            if ( m_Stage == ANNOUNCE_STAGE_REMINDER && m_Definition.bDoReminders && llTickCountNow - m_llLastAnnounceTime > m_uiReminderAnnounceInterval )
+            if ( m_Stage == ANNOUNCE_STAGE_REMINDER && m_Definition.bDoReminders && llTickCountNow - m_llLastAnnounceTime > TICKS_FROM_MINUTES( m_Definition.uiReminderIntervalMins ) )
                 bIsTimeForAnnounce = true;
 
             if ( bIsTimeForAnnounce )
@@ -77,7 +78,7 @@ public:
                 // Send request
                 this->AddRef();     // Keep object alive
                 m_bStatusBusy = true;
-                GetDownloadManager()->QueueFile( m_Definition.strURL, NULL, 0, "", 0, false, this, StaticProgressCallback, false, 1 );
+                GetDownloadManager()->QueueFile( m_Definition.strURL, NULL, 0, "", 0, false, this, StaticDownloadFinishedCallback, false, 2 );
             }
         }
         else
@@ -101,48 +102,42 @@ public:
     //
     // Process response from master server
     //
-    static bool StaticProgressCallback( double sizeJustDownloaded, double totalDownloaded, char * data, size_t dataLength, void * obj, bool bComplete, int iError )
+    static void StaticDownloadFinishedCallback( char * data, size_t dataLength, void * obj, bool bSuccess, int iErrorCode )
     {
         CMasterServer* pMasterServer = (CMasterServer*)obj;
-        pMasterServer->ProgressCallback( sizeJustDownloaded, totalDownloaded, data, dataLength, bComplete, iError );
-        if ( bComplete || iError )
-            pMasterServer->Release();   // No need to keep object alive now
-        return true;
+        pMasterServer->DownloadFinishedCallback( data, dataLength, bSuccess, iErrorCode );
+        pMasterServer->Release();   // No need to keep object alive now
     }
 
     //
     // Process response from master server
     //
-    void ProgressCallback( double sizeJustDownloaded, double totalDownloaded, char * data, size_t dataLength, bool bComplete, int iError )
+    void DownloadFinishedCallback( char * data, size_t dataLength, bool bSuccess, int iErrorCode )
     {
-        if ( bComplete || iError )
-        {
-            m_bStatusBusy = false;
-        }
+        m_bStatusBusy = false;
 
-        if ( bComplete )
+        if ( bSuccess )
         {
             if ( m_Stage < ANNOUNCE_STAGE_REMINDER )
             {
                 m_Stage = ANNOUNCE_STAGE_REMINDER;
-                if ( !m_Definition.bHideProblems || iError == 200 )
+                if ( !m_Definition.bHideSuccess )
                 {
                     CArgMap argMap;
                     argMap.SetFromString( data );
                     SString strOkMessage = argMap.Get( "ok_message" );
 
                     // Log successful initial announcement
-                    if ( iError == 200 )
+                    if ( iErrorCode == 200 )
                         CLogger::LogPrintf( "%s success! %s\n", *m_Definition.strDesc, *strOkMessage );
                     else
-                        CLogger::LogPrintf( "%s successish! (%u %s)\n", *m_Definition.strDesc, iError, GetDownloadManager()->GetError() );
+                        CLogger::LogPrintf( "%s successish! (%u %s)\n", *m_Definition.strDesc, iErrorCode, GetDownloadManager()->GetError() );
                 }
             }
         }
         else
-        if ( iError )
         {
-            bool bCanRetry = ( iError == 28 ); // We can retry if 'Timeout was reached'
+            bool bCanRetry = ( iErrorCode == 28 ); // We can retry if 'Timeout was reached'
 
             if ( m_Stage == ANNOUNCE_STAGE_INITIAL )
             {
@@ -152,7 +147,7 @@ public:
                     if ( !m_Definition.bHideProblems )
                     {
                         // Log initial failure
-                        CLogger::LogPrintf( "%s problem (%u). Retrying...\n", *m_Definition.strDesc, iError );
+                        CLogger::LogPrintf( "%s no response. Retrying...\n", *m_Definition.strDesc );
                     }
                 }
             }
@@ -166,11 +161,16 @@ public:
                     if ( !m_Definition.bHideProblems )
                     {
                         // Log final failure
-                        CLogger::LogPrintf( "%s failed! (%u %s)\n", *m_Definition.strDesc, iError, GetDownloadManager()->GetError() );
+                        CLogger::LogPrintf( "%s failed! (%u %s)\n", *m_Definition.strDesc, iErrorCode, GetDownloadManager()->GetError() );
                     }
                 }
             }
         }
+    }
+
+    const SMasterServerDefinition& GetDefinition( void ) const
+    {
+        return m_Definition;
     }
 
     //
@@ -186,7 +186,6 @@ protected:
     uint                            m_Stage;
     uint                            m_uiInitialAnnounceRetryAttempts;
     uint                            m_uiInitialAnnounceRetryInterval;
-    uint                            m_uiReminderAnnounceInterval;
     uint                            m_uiPushInterval;
     long long                       m_llLastAnnounceTime;
     long long                       m_llLastPushTime;
@@ -219,29 +218,40 @@ public:
     void InitServerList( void )
     {
         assert( m_MasterServerList.empty() );
+        AddServer( true, true, false, false, 60 * 24, "Querying MTA master server...", QUERY_URL_MTA_MASTER_SERVER );
+    }
+
+    void AddServer( bool bAcceptsPush, bool bDoReminders, bool bHideProblems, bool bHideSuccess, uint uiReminderIntervalMins, const SString& strDesc, const SString& strInUrl )
+    {
+        // Check if server is already present
+        for( auto pMasterServer : m_MasterServerList )
+        {
+            if ( pMasterServer->GetDefinition().strURL.BeginsWithI( strInUrl.SplitLeft( "%" ) ) )
+                return;
+        }
 
         CMainConfig* pMainConfig = g_pGame->GetConfig();
         SString strServerIP      = pMainConfig->GetServerIP();
         ushort  usServerPort     = pMainConfig->GetServerPort();
         ushort  usHTTPPort       = pMainConfig->GetHTTPPort();
-        uint    uiPlayerCount    = g_pGame->GetPlayerManager()->Count ();
         uint    uiMaxPlayerCount = pMainConfig->GetMaxPlayers();
         bool    bPassworded      = pMainConfig->HasPassword();
         SString strAseMode       = pMainConfig->GetSetting( "ase" );
         bool    bAseLanListen    = pMainConfig->GetAseLanListenEnabled();
 
         SString strVersion( "%d.%d.%d-%d.%05d", MTASA_VERSION_MAJOR, MTASA_VERSION_MINOR, MTASA_VERSION_MAINTENANCE, MTASA_VERSION_TYPE, MTASA_VERSION_BUILD );
-        SString strExtra( "%d_%d_%d_%s_%d", uiPlayerCount, uiMaxPlayerCount, bPassworded, *strAseMode, bAseLanListen );
+        SString strExtra( "%d_%d_%d_%s_%d", 0, uiMaxPlayerCount, bPassworded, *strAseMode, bAseLanListen );
 
-        SMasterServerDefinition masterServerDefinitionList[] = {
-                           // Gone away  { false, false, true,  "Querying game-monitor.com master server...", SString( QUERY_URL_GAME_MONITOR, usServerPort + 123 ) },
-                                         { true,  true,  false, "Querying MTA master server...", SString( QUERY_URL_MTA_MASTER_SERVER, usServerPort, usServerPort + 123, usHTTPPort, *strVersion, *strExtra, *strServerIP ) },
-                                       };
+        SString strUrl = strInUrl;
+        strUrl = strUrl.Replace( "%GAME%", SString( "%u", usServerPort ) );
+        strUrl = strUrl.Replace( "%ASE%", SString( "%u", usServerPort + 123 ) );
+        strUrl = strUrl.Replace( "%HTTP%", SString( "%u", usHTTPPort ) );
+        strUrl = strUrl.Replace( "%VER%", strVersion );
+        strUrl = strUrl.Replace( "%EXTRA%", strExtra );
+        strUrl = strUrl.Replace( "%IP%", strServerIP );
 
-        for ( uint i = 0 ; i < NUMELMS( masterServerDefinitionList ) ; i++ )
-        {
-            m_MasterServerList.push_back( new CMasterServer( masterServerDefinitionList[i] ) );
-        }
+        SMasterServerDefinition masterServerDefinition = { bAcceptsPush, bDoReminders, bHideProblems, bHideSuccess, uiReminderIntervalMins, strDesc, strUrl };
+        m_MasterServerList.push_back( new CMasterServer( masterServerDefinition ) );
     }
 
     //

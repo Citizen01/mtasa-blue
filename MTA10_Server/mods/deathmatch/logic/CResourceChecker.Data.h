@@ -242,6 +242,8 @@ namespace
                                          { "pregMatch",                 "1.3.5" },
                                          { "setElementCallPropagationEnabled",  "1.3.5-9.06118" },
                                          { "isElementCallPropagationEnabled",   "1.3.5-9.06118" },
+                                         { "resendPlayerACInfo",        "1.5.1-9.07633" },
+                                         { "dbPrepareString",           "1.5.2" },
                                         };
 
 

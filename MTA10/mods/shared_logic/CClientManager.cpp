@@ -21,11 +21,12 @@ extern CClientGame* g_pClientGame;
 CClientManager::CClientManager ( void )
 {
     m_pMarkerStreamer = new CClientStreamer ( CClientMarker::IsLimitReached, 600.0f, 300, 300 );
-    m_pObjectStreamer = new CClientStreamer ( CClientObjectManager::IsObjectLimitReached, 500.0f, 300, 300 );
-    m_pObjectLodStreamer = new CClientStreamer ( CClientObjectManager::IsObjectLimitReached, 1700.0f, 1500, 1500 );
+    m_pObjectStreamer = new CClientStreamer ( CClientObjectManager::StaticIsObjectLimitReached, 500.0f, 300, 300 );
+    m_pObjectLodStreamer = new CClientStreamer ( CClientObjectManager::StaticIsLowLodObjectLimitReached, 1700.0f, 1500, 1500 );
     m_pPickupStreamer = new CClientStreamer ( CClientPickupManager::IsPickupLimitReached, 100.0f, 300, 300 );
     m_pPlayerStreamer = new CClientStreamer ( CClientPlayerManager::IsPlayerLimitReached, 250.0f, 300, 300 );
     m_pVehicleStreamer = new CClientStreamer ( CClientVehicleManager::IsVehicleLimitReached, 250.0f, 300, 300 );
+    m_pLightStreamer = new CClientStreamer ( CClientPointLightsManager::IsLightsLimitReached, 600.0f, 300, 300 );
     m_pModelRequestManager = new CClientModelRequestManager;
 
     m_pGUIManager = new CClientGUIManager;
@@ -148,6 +149,9 @@ CClientManager::~CClientManager ( void )
     delete m_pVehicleStreamer;
     m_pVehicleStreamer = NULL;
 
+    delete m_pLightStreamer;
+    m_pLightStreamer = nullptr;
+
     delete m_pPickupStreamer;
     m_pPickupStreamer = NULL;
 
@@ -245,6 +249,7 @@ void CClientManager::UpdateStreamers ( void )
         m_pPickupStreamer->DoPulse ( vecTemp );
         m_pPlayerStreamer->DoPulse ( vecTemp );
         m_pVehicleStreamer->DoPulse ( vecTemp );
+        m_pLightStreamer->DoPulse ( vecTemp );
     }
 }
 

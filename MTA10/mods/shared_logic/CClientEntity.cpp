@@ -109,7 +109,7 @@ CClientEntity::~CClientEntity ( void )
     m_bDisallowAttaching = true;
     assert( !m_pAttachedToEntity && m_AttachedEntities.empty() );
 
-    RemoveAllCollisions ( true );
+    RemoveAllCollisions ();
 
     if ( m_pEventManager )
     {
@@ -484,7 +484,7 @@ bool CClientEntity::GetCustomDataBool ( const char* szName, bool& bOut, bool bIn
     return false;
 }
 
-void CClientEntity::SetCustomData ( const char* szName, const CLuaArgument& Variable, CLuaMain* pLuaMain )
+void CClientEntity::SetCustomData ( const char* szName, const CLuaArgument& Variable )
 {
     assert ( szName );
     if ( strlen ( szName ) > MAX_CUSTOMDATA_NAME_LENGTH )
@@ -503,7 +503,7 @@ void CClientEntity::SetCustomData ( const char* szName, const CLuaArgument& Vari
     }
 
     // Set the new data
-    m_pCustomData->Set ( szName, Variable, pLuaMain );
+    m_pCustomData->Set ( szName, Variable );
 
     // Trigger the onClientElementDataChange event on us
     CLuaArguments Arguments;
@@ -755,7 +755,8 @@ bool CClientEntity::AddEvent ( CLuaMain* pLuaMain, const char* szName, const CLu
 
 bool CClientEntity::CallEvent ( const char* szName, const CLuaArguments& Arguments, bool bCallOnChildren )
 {
-    g_pClientGame->GetDebugHookManager()->OnPreEvent( szName, Arguments, this, NULL );
+    if ( !g_pClientGame->GetDebugHookManager()->OnPreEvent( szName, Arguments, this, NULL ) )
+        return false;
 
     TIMEUS startTime = GetTimeUs ();
 
@@ -1098,7 +1099,7 @@ void CClientEntity::GetChildrenByType ( const char* szType, lua_State* luaVM )
 
 bool CClientEntity::CollisionExists ( CClientColShape* pShape )
 {
-    list < CClientColShape* > ::iterator iter = m_Collisions.begin ();
+    CFastList < CClientColShape* > ::iterator iter = m_Collisions.begin ();
     for ( ; iter != m_Collisions.end () ; iter++ )
     {
         if ( *iter == pShape )
@@ -1110,21 +1111,15 @@ bool CClientEntity::CollisionExists ( CClientColShape* pShape )
 }
 
 
-void CClientEntity::RemoveAllCollisions ( bool bNotify )
+void CClientEntity::RemoveAllCollisions ( void )
 {
-    if ( !m_Collisions.empty () )
+    CFastList < CClientColShape* > ::iterator iter = m_Collisions.begin ();
+    for ( ; iter != m_Collisions.end () ; iter++ )
     {
-        if ( bNotify )
-        {
-            list < CClientColShape* > ::iterator iter = m_Collisions.begin ();
-            for ( ; iter != m_Collisions.end () ; iter++ )
-            {
-                (*iter)->RemoveCollider ( this );
-            }
-        }
-
-        m_Collisions.clear ();
+        (*iter)->RemoveCollider ( this );
     }
+
+    m_Collisions.clear ();
 }
 
 

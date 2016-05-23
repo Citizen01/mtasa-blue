@@ -13,6 +13,7 @@
 
 CLuaManager* CLuaDefs::m_pLuaManager = NULL;
 CScriptDebugging* CLuaDefs::m_pScriptDebugging = NULL;
+CElementDeleter* CLuaDefs::m_pElementDeleter = NULL;
 CClientGame* CLuaDefs::m_pClientGame = NULL;
 CClientManager* CLuaDefs::m_pManager = NULL;
 CClientEntity* CLuaDefs::m_pRootEntity = NULL;
@@ -38,6 +39,7 @@ void CLuaDefs::Initialize ( CClientGame* pClientGame,
 {
     m_pLuaManager = pLuaManager;
     m_pScriptDebugging = pScriptDebugging;
+    m_pElementDeleter = pClientGame->GetElementDeleter ();
     m_pClientGame = pClientGame;
     m_pManager = pClientGame->GetManager ();
     m_pRootEntity = pClientGame->GetRootEntity ();
@@ -66,7 +68,8 @@ int CLuaDefs::CanUseFunction ( lua_CFunction f, lua_State* luaVM )
 
     g_pCore->UpdateDummyProgress();
 
-    g_pClientGame->GetDebugHookManager()->OnPreFunction( f, luaVM, true );
+    if ( !g_pClientGame->GetDebugHookManager()->OnPreFunction( f, luaVM, true ) )
+        return false;
 
     // Check if post function hook is required
     if ( g_pClientGame->GetDebugHookManager()->HasPostFunctionHooks() )
